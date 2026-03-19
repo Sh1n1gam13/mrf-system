@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MRF System – Modification Request Form</title>
+
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --black:#0a0a0a; --yellow:#F5C800; --yellow-dark:#c9a400;
+    --white:#f5f5f0; --gray:#1e1e1e; --gray2:#2a2a2a; --gray3:#3a3a3a;
+    --muted:#888; --success:#2ecc71; --danger:#e74c3c; --info:#3498db;
+    --font-head:'Bebas Neue',sans-serif;
+    --font-body:'IBM Plex Sans',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+  }
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--black);color:var(--white);font-family:var(--font-body);min-height:100vh;overflow-x:hidden;}
+
+  .page{display:none;min-height:100vh;}
+  .page.active{display:flex;}
+
+  /* ── LOGIN ── */
+  #page-login{align-items:center;justify-content:center;background:var(--black);position:relative;overflow:hidden;}
+  #page-login::before{content:'MRF';position:absolute;font-family:var(--font-head);font-size:40vw;color:rgba(245,200,0,0.03);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;}
+  .login-card{background:var(--gray);border:1px solid var(--gray3);border-top:3px solid var(--yellow);width:100%;max-width:420px;padding:40px;position:relative;z-index:1;}
+  .login-brand{margin-bottom:32px;}
+  .login-brand h1{font-family:var(--font-head);font-size:2.8rem;color:var(--yellow);letter-spacing:2px;line-height:1;}
+  .login-brand p{font-size:0.72rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:4px;font-family:var(--font-mono);}
+
+  /* ── FORM CONTROLS ── */
+  .form-group{margin-bottom:20px;}
+  .form-group label{display:block;font-size:0.7rem;font-family:var(--font-mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+  .form-group select,.form-group input{width:100%;background:var(--gray2);border:1px solid var(--gray3);color:var(--white);padding:12px 16px;font-family:var(--font-body);font-size:0.9rem;outline:none;transition:border-color 0.2s;appearance:none;-webkit-appearance:none;}
+  .form-group select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%23888' d='M0 0l6 8 6-8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer;}
+  .form-group select:focus,.form-group input:focus{border-color:var(--yellow);}
+  .form-group select option{background:var(--gray2);}
+  .pw-wrap{position:relative;}
+  .pw-wrap input{padding-right:44px;}
+  .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:4px;}
+
+  /* ── BUTTONS ── */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 24px;font-family:var(--font-mono);font-size:0.85rem;letter-spacing:1px;font-weight:500;border:none;cursor:pointer;transition:all 0.15s;}
+  .btn:active{transform:scale(0.98);}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn-primary{background:var(--yellow);color:var(--black);width:100%;}
+  .btn-primary:hover:not(:disabled){background:var(--yellow-dark);}
+  .btn-outline{background:transparent;color:var(--yellow);border:1px solid var(--yellow);}
+  .btn-outline:hover{background:rgba(245,200,0,0.08);}
+  .btn-ghost{background:var(--gray2);color:var(--white);}
+  .btn-ghost:hover{background:var(--gray3);}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-success{background:var(--success);color:#fff;}
+  .btn-sm{padding:7px 14px;font-size:0.75rem;}
+
+  /* ── ALERTS ── */
+  .alert{padding:12px 16px;font-size:0.82rem;margin-bottom:16px;font-family:var(--font-mono);border-left:3px solid;display:none;}
+  .alert.show{display:block;}
+  .alert-error{background:rgba(231,76,60,0.1);border-color:var(--danger);color:#ff8a80;}
+  .alert-success{background:rgba(46,204,113,0.1);border-color:var(--success);color:#69f0ae;}
+  .alert-info{background:rgba(52,152,219,0.1);border-color:var(--info);color:#82cfff;}
+
+  /* ── APP LAYOUT ── */
+  #page-app{flex-direction:column;}
+  .topbar{background:var(--gray);border-bottom:1px solid var(--gray3);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  .topbar-brand{font-family:var(--font-head);font-size:1.4rem;color:var(--yellow);letter-spacing:2px;}
+  .topbar-brand span{color:var(--muted);font-family:var(--font-mono);font-size:0.7rem;letter-spacing:1px;margin-left:10px;}
+  .topbar-right{display:flex;align-items:center;gap:12px;}
+  .dept-badge{background:rgba(245,200,0,0.12);color:var(--yellow);padding:4px 10px;font-family:var(--font-mono);font-size:0.72rem;letter-spacing:1px;border:1px solid rgba(245,200,0,0.2);}
+
+  /* ── TABS ── */
+  .tab-nav{display:flex;background:var(--gray);border-bottom:1px solid var(--gray3);padding:0 24px;overflow-x:auto;}
+  .tab-btn{padding:14px 20px;background:none;border:none;color:var(--muted);font-family:var(--font-mono);font-size:0.78rem;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;white-space:nowrap;}
+  .tab-btn:hover{color:var(--white);}
+  .tab-btn.active{color:var(--yellow);border-bottom-color:var(--yellow);}
+  .content{flex:1;padding:28px 24px;max-width:1100px;width:100%;margin:0 auto;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+  .section-title{font-family:var(--font-head);font-size:1.8rem;color:var(--white);letter-spacing:2px;}
+
+  /* ── STATS ── */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;}
+  .stat-card{background:var(--gray);border:1px solid var(--gray3);padding:20px;position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+  .stat-card.yellow::before{background:var(--yellow);}
+  .stat-card.green::before{background:var(--success);}
+  .stat-card.red::before{background:var(--danger);}
+  .stat-card.blue::before{background:var(--info);}
+  .stat-label{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+  .stat-value{font-family:var(--font-head);font-size:2.4rem;color:var(--white);line-height:1;}
+
+  /* ── TABLE ── */
+  .table-wrap{background:var(--gray);border:1px solid var(--gray3);overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  thead tr{border-bottom:1px solid var(--gray3);background:var(--gray2);}
+  th{padding:12px 16px;text-align:left;font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;white-space:nowrap;}
+  td{padding:14px 16px;font-size:0.87rem;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:rgba(255,255,255,0.02);}
+
+  .status-badge{display:inline-block;padding:3px 10px;font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;border:1px solid;}
+  .status-draft{color:var(--muted);border-color:var(--gray3);}
+  .status-submitted{color:var(--info);border-color:rgba(52,152,219,0.4);background:rgba(52,152,219,0.08);}
+  .status-approved{color:var(--success);border-color:rgba(46,204,113,0.4);background:rgba(46,204,113,0.08);}
+  .status-denied{color:var(--danger);border-color:rgba(231,76,60,0.4);background:rgba(231,76,60,0.08);}
+  .status-final_approved{color:var(--yellow);border-color:rgba(245,200,0,0.4);background:rgba(245,200,0,0.08);}
+
+  /* ── REQUEST FORM ── */
+  .form-card{background:var(--gray);border:1px solid var(--gray3);padding:28px;margin-bottom:20px;}
+  .form-card-title{font-family:var(--font-head);font-size:1.1rem;letter-spacing:2px;color:var(--yellow);margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--gray3);display:flex;align-items:center;gap:10px;}
+  .section-num{background:var(--yellow);color:var(--black);width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;font-family:var(--font-mono);font-weight:600;flex-shrink:0;}
+  .form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px;}
+  .form-field label{display:block;font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+  .form-field input,.form-field textarea{width:100%;background:var(--gray2);border:1px solid var(--gray3);color:var(--white);padding:10px 14px;font-family:var(--font-body);font-size:0.88rem;outline:none;transition:border-color 0.2s;resize:vertical;}
+  .form-field input:focus,.form-field textarea:focus{border-color:var(--yellow);}
+  .checkbox-group{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:8px;}
+  .checkbox-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gray2);border:1px solid var(--gray3);cursor:pointer;transition:border-color 0.2s;font-size:0.85rem;}
+  .checkbox-item:hover{border-color:var(--yellow);}
+  .checkbox-item input[type="checkbox"]{accent-color:var(--yellow);width:15px;height:15px;}
+
+  /* ── UPLOAD ── */
+  .upload-area{border:2px dashed var(--gray3);padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;}
+  .upload-area:hover,.upload-area.dragover{border-color:var(--yellow);background:rgba(245,200,0,0.04);}
+  .upload-area input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .upload-icon{font-size:2rem;margin-bottom:8px;opacity:0.4;}
+  .upload-text{font-size:0.82rem;color:var(--muted);font-family:var(--font-mono);}
+  .progress-wrap{margin-top:12px;display:none;}
+  .progress-wrap.show{display:block;}
+  .progress-bar-bg{background:var(--gray2);height:4px;}
+  .progress-bar-fill{background:var(--yellow);height:4px;transition:width 0.3s;}
+  .progress-label{font-size:0.72rem;font-family:var(--font-mono);color:var(--muted);margin-top:4px;}
+  .file-list{margin-top:12px;}
+  .file-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--gray2);border:1px solid var(--gray3);margin-bottom:6px;font-size:0.8rem;font-family:var(--font-mono);}
+  .file-item a{color:var(--info);text-decoration:none;}
+
+  /* ── FORM ACTIONS ── */
+  .form-actions{display:flex;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray3);flex-wrap:wrap;}
+
+  /* ── MISC ── */
+  .empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
+  .empty-state .empty-icon{font-size:3rem;margin-bottom:16px;opacity:0.3;}
+  .empty-state p{font-family:var(--font-mono);font-size:0.82rem;letter-spacing:1px;}
+  .spinner{width:18px;height:18px;border:2px solid rgba(245,200,0,0.2);border-top-color:var(--yellow);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .control-no{font-family:var(--font-mono);font-size:0.78rem;color:var(--yellow);background:rgba(245,200,0,0.08);padding:2px 8px;border:1px solid rgba(245,200,0,0.2);}
+
+  /* ── TOAST ── */
+  .toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+  .toast{background:var(--gray2);border:1px solid var(--gray3);border-left:3px solid var(--yellow);padding:12px 16px;font-family:var(--font-mono);font-size:0.78rem;min-width:260px;max-width:360px;animation:slideIn 0.2s ease;}
+  @keyframes slideIn{from{transform:translateX(100%);opacity:0;}}
+  .toast.success{border-left-color:var(--success);}
+  .toast.error{border-left-color:var(--danger);}
+
+  /* ── MODAL ── */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;padding:16px;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--gray);border:1px solid var(--gray3);border-top:3px solid var(--yellow);width:100%;max-width:500px;padding:32px;position:relative;max-height:90vh;overflow-y:auto;}
+  .modal-close{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;}
+  .modal-title{font-family:var(--font-head);font-size:1.5rem;color:var(--yellow);letter-spacing:2px;margin-bottom:24px;}
+  .modal-field{margin-bottom:16px;}
+  .modal-field label{display:block;font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:var(--font-mono);}
+  .modal-field input{width:100%;background:var(--gray2);border:1px solid var(--gray3);color:var(--white);padding:10px 14px;font-family:var(--font-body);font-size:0.88rem;outline:none;}
+  .modal-field input:focus{border-color:var(--yellow);}
+
+
+  /* ── INBOX ── */
+  .badge{display:inline-flex;align-items:center;justify-content:center;background:var(--danger);color:#fff;font-size:0.6rem;font-family:var(--font-mono);font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;margin-left:6px;animation:pulse 1.5s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.6;}}
+  .msg-card{background:var(--gray2);border:1px solid var(--gray3);border-left:3px solid var(--gray3);padding:16px;margin-bottom:12px;cursor:pointer;transition:all 0.2s;}
+  .msg-card:hover{border-color:var(--yellow);background:rgba(245,200,0,0.04);}
+  .msg-card.unread{border-left-color:var(--yellow);}
+  .msg-card.type-esignature{border-left-color:#9b59b6;}
+  .msg-card.type-approval{border-left-color:var(--info);}
+  .msg-card.type-notification{border-left-color:var(--success);}
+  .msg-card.status-signed{border-left-color:var(--success);}
+  .msg-card.status-denied{border-left-color:var(--danger);}
+  .msg-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;}
+  .msg-from{font-family:var(--font-mono);font-size:0.72rem;color:var(--yellow);letter-spacing:1px;}
+  .msg-time{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);}
+  .msg-type-badge{font-family:var(--font-mono);font-size:0.62rem;letter-spacing:1px;padding:2px 8px;border:1px solid;text-transform:uppercase;}
+  .msg-type-esignature{color:#9b59b6;border-color:rgba(155,89,182,0.4);background:rgba(155,89,182,0.08);}
+  .msg-type-approval{color:var(--info);border-color:rgba(52,152,219,0.4);background:rgba(52,152,219,0.08);}
+  .msg-type-notification{color:var(--success);border-color:rgba(46,204,113,0.4);background:rgba(46,204,113,0.08);}
+  .msg-type-general{color:var(--muted);border-color:var(--gray3);}
+  .msg-subject{font-size:0.9rem;font-weight:500;margin-bottom:4px;}
+  .msg-preview{font-size:0.8rem;color:var(--muted);}
+  .unread-dot{width:8px;height:8px;background:var(--yellow);border-radius:50%;display:inline-block;margin-right:6px;flex-shrink:0;}
+  .sig-upload-area{border:2px dashed var(--gray3);padding:24px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;margin-top:12px;}
+  .sig-upload-area:hover{border-color:#9b59b6;background:rgba(155,89,182,0.04);}
+  .sig-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .sig-preview{max-width:100%;max-height:120px;margin-top:12px;border:1px solid var(--gray3);}
+  .compose-field{margin-bottom:14px;}
+  .compose-field label{display:block;font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+  .compose-field select,.compose-field input,.compose-field textarea{width:100%;background:var(--gray2);border:1px solid var(--gray3);color:var(--white);padding:10px 14px;font-family:var(--font-body);font-size:0.88rem;outline:none;}
+  .compose-field select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%23888' d='M0 0l6 8 6-8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer;}
+  .compose-field select option{background:var(--gray2);}
+  .compose-field select:focus,.compose-field input:focus,.compose-field textarea:focus{border-color:var(--yellow);}
+
+  @media(max-width:600px){.content{padding:16px;}.form-card{padding:18px;}.stats-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Send Copy Modal -->
+<div class="modal-overlay" id="sendCopyModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()" type="button">✕</button>
+    <div class="modal-title">📧 SEND COPY FOR APPROVAL</div>
+
+    <div style="margin-bottom:20px;padding:12px;background:var(--gray2);border:1px solid var(--gray3);">
+      <p style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:1px;margin-bottom:4px;">REQUEST</p>
+      <p id="modal-controlno" style="font-family:var(--font-mono);color:var(--yellow);font-size:0.82rem;">—</p>
+      <p id="modal-partname" style="font-size:0.85rem;margin-top:4px;color:var(--white);">—</p>
+    </div>
+
+    <div style="background:var(--gray2);border:1px solid var(--gray3);padding:14px;margin-bottom:20px;">
+      <p style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">NOTED BY</p>
+      <div class="modal-field">
+        <label>Full Name</label>
+        <input type="text" id="notedByName" placeholder="e.g. Juan Santos"/>
+      </div>
+      <div class="modal-field" style="margin-bottom:0">
+        <label>Email Address</label>
+        <input type="email" id="notedByEmail" placeholder="e.g. manager@mesco.com"/>
+      </div>
+    </div>
+
+    <div style="background:var(--gray2);border:1px solid var(--gray3);padding:14px;margin-bottom:20px;">
+      <p style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">APPROVED BY</p>
+      <div class="modal-field">
+        <label>Full Name</label>
+        <input type="text" id="approvedByName" placeholder="e.g. Maria Reyes"/>
+      </div>
+      <div class="modal-field" style="margin-bottom:0">
+        <label>Email Address</label>
+        <input type="email" id="approvedByEmail" placeholder="e.g. president@mesco.com"/>
+      </div>
+    </div>
+
+    <div id="sendCopyAlert" style="display:none;padding:10px 14px;font-family:var(--font-mono);font-size:0.78rem;border-left:3px solid;margin-bottom:16px;"></div>
+
+    <div style="display:flex;gap:12px;">
+      <button class="btn btn-ghost" onclick="closeModal()" type="button" style="flex:1;">CANCEL</button>
+      <button class="btn btn-primary" id="sendEmailBtn" onclick="sendCopyEmail()" type="button" style="flex:2;">📧 GENERATE PDF &amp; SEND</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ LOGIN PAGE ══════════ -->
+<div class="page active" id="page-login">
+  <div class="login-card">
+    <div class="login-brand">
+      <h1>MRF</h1>
+      <p>Modification Request Form System</p>
+    </div>
+    <div class="alert alert-error" id="loginError"></div>
+    <div class="form-group">
+      <label>Department</label>
+      <select id="deptSelect">
+        <option value="" disabled selected>— Select Department —</option>
+        <option value="ENG">Engineering Department</option>
+        <option value="PROD">Production Department</option>
+        <option value="MAINT">Maintenance Department</option>
+        <option value="PURCH">Purchasing Department</option>
+        <option value="QA">Quality Assurance (Admin)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <div class="pw-wrap">
+        <input type="password" id="pwInput" placeholder="Enter password"/>
+        <button class="pw-toggle" id="pwToggle" type="button">👁</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="loginBtn" type="button">LOGIN</button>
+    <div style="margin-top:20px;padding:14px;background:var(--gray2);border:1px solid var(--gray3);">
+      <p style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">TEST CREDENTIALS</p>
+      <p style="font-size:0.78rem;color:var(--muted);">QA Admin → <code style="color:var(--yellow)">QA@MESCO2025!Admin</code></p>
+      <p style="font-size:0.78rem;color:var(--muted);margin-top:4px;">Engineering → <code style="color:var(--yellow)">Eng@MESCO2025!</code></p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ APP PAGE ══════════ -->
+<div class="page" id="page-app">
+  <div class="topbar">
+    <div class="topbar-brand">MRF <span>MODIFICATION REQUEST FORM</span></div>
+    <div class="topbar-right">
+      <span class="dept-badge" id="deptBadge">—</span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">LOGOUT</button>
+    </div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="dashboard" type="button">Dashboard</button>
+    <button class="tab-btn" data-tab="new-request" type="button">New Request</button>
+    <button class="tab-btn" data-tab="my-requests" type="button">My Requests</button>
+    <button class="tab-btn qa-only" data-tab="all-requests" type="button" style="display:none">All Requests (QA)</button>
+    <button class="tab-btn" data-tab="inbox" type="button">📥 Inbox <span class="badge" id="inboxBadge" style="display:none">0</span></button>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <div class="section-header">
+        <h2 class="section-title">DASHBOARD</h2>
+        <button class="btn btn-ghost btn-sm" onclick="loadDashboard()" type="button">↻ REFRESH</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card yellow"><div class="stat-label">Total</div><div class="stat-value" id="stat-total">—</div></div>
+        <div class="stat-card blue"><div class="stat-label">Submitted</div><div class="stat-value" id="stat-submitted">—</div></div>
+        <div class="stat-card green"><div class="stat-label">Approved</div><div class="stat-value" id="stat-approved">—</div></div>
+        <div class="stat-card red"><div class="stat-label">Denied</div><div class="stat-value" id="stat-denied">—</div></div>
+        <div class="stat-card yellow"><div class="stat-label">Final Approved</div><div class="stat-value" id="stat-final">—</div></div>
+      </div>
+      <div class="alert alert-success show">✅ Firebase connected — Auth &amp; Firestore active</div>
+      <div style="margin-top:12px" class="alert alert-info show">ℹ️ Test interface to verify the system is working. Your real frontend replaces this.</div>
+    </div>
+
+    <!-- NEW REQUEST -->
+    <div class="tab-panel" id="tab-new-request">
+      <div class="section-header">
+        <h2 class="section-title">NEW REQUEST</h2>
+        <span id="draftId" style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted)"></span>
+      </div>
+
+      <!-- Section 1 -->
+      <div class="form-card">
+        <div class="form-card-title"><span class="section-num">1</span> BASIC INFO</div>
+        <div class="form-row">
+          <div class="form-field"><label>Application Date</label><input type="date" id="f-appDate"/></div>
+          <div class="form-field"><label>Target Date</label><input type="date" id="f-targetDate"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Part Number *</label><input type="text" id="f-partNo" placeholder="e.g. PT-001"/></div>
+          <div class="form-field"><label>Part Name *</label><input type="text" id="f-partName" placeholder="e.g. Bearing Assembly"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Prepared By *</label><input type="text" id="f-preparedBy" placeholder="Your name"/></div>
+          <div class="form-field"><label>Factory No.</label><input type="text" id="f-factoryNo" placeholder="e.g. F-01"/></div>
+        </div>
+      </div>
+
+      <!-- Section 2 -->
+      <div class="form-card">
+        <div class="form-card-title"><span class="section-num">2</span> REASON FOR SUBMISSION</div>
+        <div class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" value="New Part"> New Part</label>
+          <label class="checkbox-item"><input type="checkbox" value="Design Change"> Design Change</label>
+          <label class="checkbox-item"><input type="checkbox" value="Material Change"> Material Change</label>
+          <label class="checkbox-item"><input type="checkbox" value="Process Change"> Process Change</label>
+          <label class="checkbox-item"><input type="checkbox" value="Supplier Change"> Supplier Change</label>
+          <label class="checkbox-item"><input type="checkbox" value="Correction of Defect"> Correction of Defect</label>
+        </div>
+      </div>
+
+      <!-- Section 3 -->
+      <div class="form-card">
+        <div class="form-card-title"><span class="section-num">3</span> DETAILED CONTENT FOR CHANGE</div>
+        <div class="form-field" style="margin-bottom:16px">
+          <label>Reasons for Change</label>
+          <textarea id="f-reasons" rows="4" placeholder="Describe the reasons for this change request..."></textarea>
+        </div>
+        <div class="form-field">
+          <label>Attach Illustrations / Flow Diagrams</label>
+          <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept="image/*,application/pdf" multiple/>
+            <div class="upload-icon">📎</div>
+            <div class="upload-text">CLICK OR DRAG FILES HERE — PDF, JPG, PNG max 10MB</div>
+          </div>
+          <div class="progress-wrap" id="progressWrap">
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+            <div class="progress-label" id="progressLabel">Uploading...</div>
+          </div>
+          <div class="file-list" id="fileList"></div>
+        </div>
+      </div>
+
+      <!-- Section 4 -->
+      <div class="form-card">
+        <div class="form-card-title"><span class="section-num">4</span> ALTERATION OF STANDARD</div>
+        <div id="alterationRows">
+          <div class="form-row alteration-row">
+            <div class="form-field"><label>Standard</label><input type="text" class="alt-std" placeholder="Current standard"/></div>
+            <div class="form-field"><label>Alteration</label><input type="text" class="alt-alt" placeholder="Proposed alteration"/></div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="addRow()" type="button" style="margin-top:12px">+ ADD ROW</button>
+        <div class="form-actions">
+          <button class="btn btn-ghost" id="saveDraftBtn" type="button">SAVE DRAFT</button>
+          <button class="btn btn-primary" id="submitBtn" type="button">SUBMIT REQUEST</button>
+          <button class="btn btn-outline" id="sendCopyBtn" type="button" style="display:none">📧 SEND COPY</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY REQUESTS -->
+    <div class="tab-panel" id="tab-my-requests">
+      <div class="section-header">
+        <h2 class="section-title">MY REQUESTS</h2>
+        <button class="btn btn-ghost btn-sm" onclick="loadMyRequests()" type="button">↻ REFRESH</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Control No.</th><th>Part Name</th><th>Part No.</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+          <tbody id="myReqBody"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>NO REQUESTS YET</p></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ALL REQUESTS (QA) -->
+    <div class="tab-panel" id="tab-all-requests">
+      <div class="section-header">
+        <h2 class="section-title">ALL REQUESTS</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="statusFilter" onchange="loadAllRequests()" style="background:var(--gray2);border:1px solid var(--gray3);color:var(--white);padding:8px 12px;font-family:var(--font-mono);font-size:0.75rem;outline:none;">
+            <option value="">ALL STATUS</option>
+            <option value="submitted">SUBMITTED</option>
+            <option value="approved">APPROVED</option>
+            <option value="denied">DENIED</option>
+            <option value="final_approved">FINAL APPROVED</option>
+            <option value="draft">DRAFT</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="loadAllRequests()" type="button">↻ REFRESH</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Control No.</th><th>Dept</th><th>Part Name</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+          <tbody id="allReqBody"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>NO REQUESTS</p></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+
+    <!-- INBOX -->
+    <div class="tab-panel" id="tab-inbox">
+      <div class="section-header">
+        <h2 class="section-title">INBOX</h2>
+        <div style="display:flex;gap:8px;">
+          <select id="inboxFilter" onchange="loadInbox()" style="background:var(--gray2);border:1px solid var(--gray3);color:var(--white);padding:8px 12px;font-family:var(--font-mono);font-size:0.75rem;outline:none;">
+            <option value="">ALL MESSAGES</option>
+            <option value="unread">UNREAD</option>
+            <option value="esignature">E-SIGNATURE</option>
+            <option value="approval">APPROVAL</option>
+            <option value="notification">NOTIFICATION</option>
+            <option value="general">GENERAL</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="openComposeModal()" type="button">✉️ COMPOSE</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadInbox()" type="button">↻</button>
+        </div>
+      </div>
+      <div id="inboxList">
+        <div class="empty-state"><div class="empty-icon">📭</div><p>NO MESSAGES</p></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Firebase Config ───────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyA-nxFSE021c03Ybgu0nSA0eJpRA1bgTvc",
+  authDomain: "mrf-system-management.firebaseapp.com",
+  projectId: "mrf-system-management",
+  storageBucket: "mrf-system-management.firebasestorage.app",
+  messagingSenderId: "236245548832",
+  appId: "1:236245548832:web:c71857ee84f40e1d882145"
+});
+var auth = firebase.auth();
+var db   = firebase.firestore();
+
+// ── Config ────────────────────────────────────────────────────
+var CLOUD_NAME    = "ddkndbq5d";
+var UPLOAD_PRESET = "RequestForm";
+var GAS_URL       = "https://script.google.com/macros/s/AKfycbw93l-i_o3ovhejr6XKGnGVZC55VIH9LcJVSIc2CoB6DhfVYTXAKXyYo1mCS1IG8kdt/exec";
+
+var DEPT_MAP = {
+  ENG:   "engineering@mrf-system-management.internal",
+  PROD:  "production@mrf-system-management.internal",
+  MAINT: "maintenance@mrf-system-management.internal",
+  PURCH: "purchasing@mrf-system-management.internal",
+  QA:    "qa@mrf-system-management.internal",
+};
+
+// ── State ─────────────────────────────────────────────────────
+var currentUser    = null;
+var currentProfile = null;
+var currentDraftId = null;
+var uploadedFiles  = [];
+var currentSendRequest = null;
+
+// ── Toast ─────────────────────────────────────────────────────
+function toast(msg, type) {
+  var t = document.createElement("div");
+  t.className = "toast " + (type||"");
+  t.textContent = msg;
+  document.getElementById("toastContainer").appendChild(t);
+  setTimeout(function(){ t.remove(); }, 3500);
+}
+
+// ── Pages ─────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll(".page").forEach(function(p){ p.classList.remove("active"); });
+  document.getElementById("page-"+name).classList.add("active");
+}
+
+// ── Auth ──────────────────────────────────────────────────────
+auth.onAuthStateChanged(async function(user) {
+  if (!user) { showPage("login"); return; }
+  currentUser = user;
+  try {
+    var snap = await db.collection("users").doc(user.uid).get();
+    if (!snap.exists) { await auth.signOut(); return; }
+    currentProfile = snap.data();
+    document.getElementById("deptBadge").textContent = currentProfile.departmentName;
+    if (currentProfile.role === "qa_admin") {
+      document.querySelectorAll(".qa-only").forEach(function(el){ el.style.display="block"; });
+    }
+    showPage("app");
+    loadDashboard();
+    startInboxListener();
+    // Init compose attach after a short delay to ensure DOM is ready
+    setTimeout(function(){ initComposeAttach(); }, 500);
+    document.getElementById("f-appDate").value = new Date().toISOString().split("T")[0];
+  } catch(e) {
+    console.error("Profile error:", e.code, e.message);
+    toast("Profile error: " + e.message, "error");
+  }
+});
+
+// ── Tabs ──────────────────────────────────────────────────────
+document.querySelectorAll(".tab-btn").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+    document.querySelectorAll(".tab-panel").forEach(function(p){ p.classList.remove("active"); });
+    btn.classList.add("active");
+    document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab==="my-requests")  loadMyRequests();
+    if (btn.dataset.tab==="all-requests") loadAllRequests();
+    if (btn.dataset.tab==="inbox") loadInbox();
+  });
+});
+
+// ── Login ─────────────────────────────────────────────────────
+document.getElementById("loginBtn").addEventListener("click", async function() {
+  var code  = document.getElementById("deptSelect").value;
+  var pw    = document.getElementById("pwInput").value.trim();
+  var errEl = document.getElementById("loginError");
+  if (!code) { errEl.textContent="Please select a department."; errEl.classList.add("show"); return; }
+  if (!pw)   { errEl.textContent="Please enter your password."; errEl.classList.add("show"); return; }
+  errEl.classList.remove("show");
+  var btn = document.getElementById("loginBtn");
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+  try {
+    await auth.signInWithEmailAndPassword(DEPT_MAP[code], pw);
+  } catch(err) {
+    var msgs = {
+      "auth/wrong-password":"Incorrect password.",
+      "auth/invalid-credential":"Incorrect password.",
+      "auth/too-many-requests":"Too many attempts. Please wait.",
+      "auth/network-request-failed":"Network error. Check your connection.",
+    };
+    errEl.textContent = msgs[err.code]||("Login failed: "+err.message);
+    errEl.classList.add("show");
+    btn.disabled=false; btn.textContent="LOGIN";
+  }
+});
+
+document.getElementById("pwToggle").addEventListener("click", function() {
+  var inp = document.getElementById("pwInput");
+  inp.type = inp.type==="password" ? "text" : "password";
+  document.getElementById("pwToggle").textContent = inp.type==="password" ? "👁" : "🙈";
+});
+
+document.getElementById("pwInput").addEventListener("keydown", function(e) {
+  if (e.key==="Enter") document.getElementById("loginBtn").click();
+});
+
+document.getElementById("logoutBtn").addEventListener("click", async function() {
+  await auth.signOut();
+  currentUser=currentProfile=currentDraftId=currentSendRequest=null;
+  uploadedFiles=[];
+  document.getElementById("sendCopyBtn").style.display="none";
+});
+
+// ── Dashboard ─────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    var statuses=["submitted","approved","denied","final_approved","draft"];
+    var counts={};
+    await Promise.all(statuses.map(async function(s) {
+      var q = currentProfile && currentProfile.role==="qa_admin"
+        ? db.collection("requests").where("status","==",s)
+        : db.collection("requests").where("createdBy","==",currentUser.uid).where("status","==",s);
+      counts[s] = (await q.get()).size;
+    }));
+    var total = Object.values(counts).reduce(function(a,b){return a+b;},0);
+    document.getElementById("stat-total").textContent     = total;
+    document.getElementById("stat-submitted").textContent = counts.submitted||0;
+    document.getElementById("stat-approved").textContent  = counts.approved||0;
+    document.getElementById("stat-denied").textContent    = counts.denied||0;
+    document.getElementById("stat-final").textContent     = counts.final_approved||0;
+  } catch(e){ console.error("Dashboard:",e); }
+}
+
+// ── File Upload ───────────────────────────────────────────────
+document.getElementById("fileInput").addEventListener("change", function(){ handleFiles(this.files); });
+var uploadArea = document.getElementById("uploadArea");
+uploadArea.addEventListener("dragover",  function(e){ e.preventDefault(); uploadArea.classList.add("dragover"); });
+uploadArea.addEventListener("dragleave", function(){  uploadArea.classList.remove("dragover"); });
+uploadArea.addEventListener("drop",      function(e){ e.preventDefault(); uploadArea.classList.remove("dragover"); handleFiles(e.dataTransfer.files); });
+
+async function handleFiles(files) {
+  for (var i=0; i<files.length; i++) {
+    var file = files[i];
+    if (file.size > 10*1024*1024) { toast("File too large (max 10MB): "+file.name,"error"); continue; }
+    document.getElementById("progressWrap").classList.add("show");
+    try {
+      var result = await cloudinaryUpload(file, function(pct) {
+        document.getElementById("progressFill").style.width = pct+"%";
+        document.getElementById("progressLabel").textContent = "Uploading "+file.name+"... "+pct+"%";
+      });
+      uploadedFiles.push({ url:result.url, name:file.name });
+      renderFiles();
+      toast("Uploaded: "+file.name,"success");
+    } catch(e){ toast("Upload failed: "+e.message,"error"); }
+    document.getElementById("progressWrap").classList.remove("show");
+    document.getElementById("progressFill").style.width="0%";
+  }
+}
+
+function cloudinaryUpload(file, onProgress) {
+  return new Promise(function(resolve, reject) {
+    var fd = new FormData();
+    fd.append("file", file);
+    fd.append("upload_preset", UPLOAD_PRESET);
+    fd.append("folder", "mrf-system/illustrations");
+    var xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener("progress", function(e){ if(e.lengthComputable) onProgress(Math.round(e.loaded/e.total*100)); });
+    xhr.addEventListener("load", function(){ xhr.status===200 ? resolve({url:JSON.parse(xhr.responseText).secure_url}) : reject(new Error("Upload failed")); });
+    xhr.addEventListener("error", function(){ reject(new Error("Network error")); });
+    xhr.open("POST","https://api.cloudinary.com/v1_1/"+CLOUD_NAME+"/upload");
+    xhr.send(fd);
+  });
+}
+
+function renderFiles() {
+  document.getElementById("fileList").innerHTML = uploadedFiles.map(function(f,i) {
+    return '<div class="file-item"><a href="'+f.url+'" target="_blank">📎 '+f.name+'</a><button class="btn btn-ghost btn-sm" onclick="removeFile('+i+')" type="button">✕</button></div>';
+  }).join("");
+}
+
+function removeFile(i){ uploadedFiles.splice(i,1); renderFiles(); }
+
+// ── Alteration rows ───────────────────────────────────────────
+function addRow() {
+  var row = document.createElement("div");
+  row.className = "form-row alteration-row";
+  row.innerHTML = '<div class="form-field"><label>Standard</label><input type="text" class="alt-std" placeholder="Current standard"/></div><div class="form-field"><label>Alteration</label><input type="text" class="alt-alt" placeholder="Proposed alteration"/></div>';
+  document.getElementById("alterationRows").appendChild(row);
+}
+
+function getFormData() {
+  return {
+    applicationDate: document.getElementById("f-appDate").value||null,
+    targetDate:      document.getElementById("f-targetDate").value||null,
+    partNumber:      document.getElementById("f-partNo").value.trim(),
+    partName:        document.getElementById("f-partName").value.trim(),
+    preparedBy:      document.getElementById("f-preparedBy").value.trim(),
+    factoryNo:       document.getElementById("f-factoryNo").value.trim(),
+    reasonsForSubmission: Array.from(document.querySelectorAll(".checkbox-group input:checked")).map(function(c){return c.value;}),
+    reasonsForChange:     document.getElementById("f-reasons").value.trim(),
+    illustrationUrls:     uploadedFiles.map(function(f){return f.url;}),
+    alterationOfStandard: Array.from(document.querySelectorAll(".alteration-row")).map(function(r){
+      return {standard:r.querySelector(".alt-std").value.trim(), alteration:r.querySelector(".alt-alt").value.trim()};
+    }).filter(function(a){return a.standard||a.alteration;}),
+  };
+}
+
+// ── Save Draft ────────────────────────────────────────────────
+document.getElementById("saveDraftBtn").addEventListener("click", async function() {
+  var btn=this; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> SAVING...';
+  try {
+    var data = getFormData();
+    if (!currentDraftId) {
+      var ref = await db.collection("requests").add(Object.assign({},data,{
+        status:"draft", createdBy:currentUser.uid,
+        departmentName:currentProfile.departmentName,
+        departmentCode:currentProfile.departmentCode,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        controlNo:null,
+      }));
+      currentDraftId = ref.id;
+      document.getElementById("draftId").textContent = "Draft: "+currentDraftId;
+    } else {
+      await db.collection("requests").doc(currentDraftId).update(Object.assign({},data,{updatedAt:firebase.firestore.FieldValue.serverTimestamp()}));
+    }
+    toast("Draft saved! ✅","success");
+  } catch(e){ toast("Save failed: "+e.message,"error"); }
+  btn.disabled=false; btn.textContent="SAVE DRAFT";
+});
+
+// ── Submit Request ────────────────────────────────────────────
+document.getElementById("submitBtn").addEventListener("click", async function() {
+  var data = getFormData();
+  if (!data.partNumber||!data.partName||!data.preparedBy) {
+    toast("Fill in Part Number, Part Name and Prepared By.","error"); return;
+  }
+  var btn=this; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> SUBMITTING...';
+  try {
+    if (!currentDraftId) {
+      var ref = await db.collection("requests").add(Object.assign({},data,{
+        status:"draft", createdBy:currentUser.uid,
+        departmentName:currentProfile.departmentName,
+        departmentCode:currentProfile.departmentCode,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        controlNo:null,
+      }));
+      currentDraftId = ref.id;
+    }
+    await db.collection("requests").doc(currentDraftId).update(Object.assign({},data,{
+      status:"submitted",
+      submittedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    }));
+
+    // Generate control number
+    var counterRef  = db.collection("meta").doc("requestCounter");
+    var counterSnap = await counterRef.get();
+    var count = (counterSnap.exists ? counterSnap.data().count : 0)+1;
+    await counterRef.set({count:count},{merge:true});
+    var controlNo = "MRF-"+currentProfile.departmentCode+"-"+new Date().getFullYear()+"-"+String(count).padStart(5,"0");
+    await db.collection("requests").doc(currentDraftId).update({controlNo:controlNo});
+
+    toast("Request submitted! Control No: "+controlNo+" ✅","success");
+
+    // Show Send Copy button and open modal
+    var fullData = Object.assign({},data,{
+      controlNo:controlNo,
+      departmentName:currentProfile.departmentName,
+      departmentCode:currentProfile.departmentCode,
+    });
+    currentSendRequest = {data:fullData, id:currentDraftId};
+    document.getElementById("sendCopyBtn").style.display="inline-flex";
+    currentDraftId = null;
+    uploadedFiles  = [];
+
+    // Auto open send copy modal
+    setTimeout(function(){ openSendCopyModal(fullData, currentSendRequest.id); }, 800);
+
+    resetForm();
+    setTimeout(function(){ document.querySelector('[data-tab="my-requests"]').click(); }, 200);
+
+  } catch(e){ toast("Submit failed: "+e.message,"error"); }
+  btn.disabled=false; btn.textContent="SUBMIT REQUEST";
+});
+
+document.getElementById("sendCopyBtn").addEventListener("click", function() {
+  if (currentSendRequest) openSendCopyModal(currentSendRequest.data, currentSendRequest.id);
+});
+
+function resetForm() {
+  ["f-partNo","f-partName","f-preparedBy","f-factoryNo","f-targetDate","f-reasons"].forEach(function(id){document.getElementById(id).value="";});
+  document.getElementById("f-appDate").value = new Date().toISOString().split("T")[0];
+  document.querySelectorAll(".checkbox-group input").forEach(function(c){c.checked=false;});
+  document.getElementById("fileList").innerHTML="";
+  document.getElementById("draftId").textContent="";
+  document.getElementById("alterationRows").innerHTML='<div class="form-row alteration-row"><div class="form-field"><label>Standard</label><input type="text" class="alt-std" placeholder="Current standard"/></div><div class="form-field"><label>Alteration</label><input type="text" class="alt-alt" placeholder="Proposed alteration"/></div></div>';
+}
+
+// ── My Requests ───────────────────────────────────────────────
+async function loadMyRequests() {
+  var tbody = document.getElementById("myReqBody");
+  tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner"></span></td></tr>';
+  try {
+    var snap = await db.collection("requests").where("createdBy","==",currentUser.uid).orderBy("createdAt","desc").get();
+    if (snap.empty) {
+      tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>NO REQUESTS YET</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = snap.docs.map(function(d) {
+      var r    = d.data();
+      var date = r.createdAt ? r.createdAt.toDate().toLocaleDateString("en-PH") : "—";
+      var sendBtn = (r.status==="submitted"||r.status==="approved")
+        ? '<button class="btn btn-outline btn-sm" onclick="sendCopyFromList(\''+d.id+'\')" type="button">📧 SEND</button>'
+        : '';
+      return '<tr>'
+        +'<td>'+(r.controlNo?'<span class="control-no">'+r.controlNo+'</span>':'<span style="color:var(--muted);font-size:0.75rem">PENDING</span>')+'</td>'
+        +'<td>'+(r.partName||"—")+'</td>'
+        +'<td style="font-family:var(--font-mono);font-size:0.8rem">'+(r.partNumber||"—")+'</td>'
+        +'<td><span class="status-badge status-'+r.status+'">'+r.status.replace("_"," ")+'</span></td>'
+        +'<td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--muted)">'+date+'</td>'
+        +'<td style="display:flex;gap:6px;flex-wrap:wrap">'
+          +'<button class="btn btn-ghost btn-sm" onclick="viewReq(\''+d.id+'\')" type="button">VIEW</button>'
+          +sendBtn
+        +'</td>'
+        +'</tr>';
+    }).join("");
+  } catch(e){ toast("Error: "+e.message,"error"); }
+}
+
+// ── All Requests (QA) ─────────────────────────────────────────
+async function loadAllRequests() {
+  var tbody  = document.getElementById("allReqBody");
+  var filter = document.getElementById("statusFilter").value;
+  tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner"></span></td></tr>';
+  try {
+    var q = filter
+      ? db.collection("requests").where("status","==",filter).orderBy("createdAt","desc")
+      : db.collection("requests").orderBy("createdAt","desc");
+    var snap = await q.get();
+    if (snap.empty) {
+      tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>NO REQUESTS</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = snap.docs.map(function(d) {
+      var r    = d.data();
+      var date = r.submittedAt ? r.submittedAt.toDate().toLocaleDateString("en-PH") : "—";
+      var actions = '<button class="btn btn-ghost btn-sm" onclick="viewReq(\''+d.id+'\')" type="button">VIEW</button>';
+      if (r.status==="submitted") {
+        actions += ' <button class="btn btn-success btn-sm" onclick="qaAction(\''+d.id+'\',\'approved\')" type="button">✓</button>';
+        actions += ' <button class="btn btn-danger btn-sm" onclick="qaAction(\''+d.id+'\',\'denied\')" type="button">✗</button>';
+      }
+      actions += ' <button class="btn btn-outline btn-sm" onclick="sendCopyFromList(\''+d.id+'\')" type="button">📧</button>';
+      return '<tr>'
+        +'<td>'+(r.controlNo?'<span class="control-no">'+r.controlNo+'</span>':'<span style="color:var(--muted);font-size:0.75rem">DRAFT</span>')+'</td>'
+        +'<td style="font-family:var(--font-mono);font-size:0.8rem">'+(r.departmentCode||"—")+'</td>'
+        +'<td>'+(r.partName||"—")+'</td>'
+        +'<td><span class="status-badge status-'+r.status+'">'+r.status.replace("_"," ")+'</span></td>'
+        +'<td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--muted)">'+date+'</td>'
+        +'<td style="display:flex;gap:6px;flex-wrap:wrap">'+actions+'</td>'
+        +'</tr>';
+    }).join("");
+  } catch(e){ toast("Error: "+e.message,"error"); }
+}
+
+// ── QA Actions ────────────────────────────────────────────────
+async function qaAction(id, status) {
+  if (!confirm("Mark this request as "+status+"?")) return;
+  try {
+    var upd = {status:status, updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if (status==="approved") upd.approvedAt = firebase.firestore.FieldValue.serverTimestamp();
+    if (status==="denied")   upd.deniedAt   = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection("requests").doc(id).update(upd);
+    toast("Request "+status+"! ✅","success");
+    loadAllRequests(); loadDashboard();
+  } catch(e){ toast("Failed: "+e.message,"error"); }
+}
+
+// ── View Request ──────────────────────────────────────────────
+async function viewReq(id) {
+  var snap = await db.collection("requests").doc(id).get();
+  if (!snap.exists) return;
+  var r = snap.data();
+  alert("CONTROL NO: "+(r.controlNo||"PENDING")+"\nPART: "+r.partName+" ("+r.partNumber+")\nDEPT: "+r.departmentName+"\nSTATUS: "+r.status+"\nPREPARED BY: "+r.preparedBy+"\nREASONS: "+(r.reasonsForSubmission||[]).join(", "));
+}
+
+// ══════════════════════════════════════════════════════════════
+// SEND COPY MODAL
+// ══════════════════════════════════════════════════════════════
+
+function openSendCopyModal(requestData, requestId) {
+  currentSendRequest = {data:requestData, id:requestId};
+  document.getElementById("modal-controlno").textContent = requestData.controlNo||"PENDING";
+  document.getElementById("modal-partname").textContent  = (requestData.partName||"—")+" ("+(requestData.partNumber||"—")+")";
+  document.getElementById("notedByName").value    = "";
+  document.getElementById("notedByEmail").value   = "";
+  document.getElementById("approvedByName").value  = "";
+  document.getElementById("approvedByEmail").value = "";
+  document.getElementById("sendCopyAlert").style.display = "none";
+  document.getElementById("sendEmailBtn").textContent = "📧 GENERATE PDF & SEND";
+  document.getElementById("sendEmailBtn").disabled    = false;
+  document.getElementById("sendCopyModal").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("sendCopyModal").classList.remove("open");
+}
+
+function showSendAlert(msg, type) {
+  var el = document.getElementById("sendCopyAlert");
+  el.textContent = msg;
+  el.style.display = "block";
+  el.style.background = type==="error" ? "rgba(231,76,60,0.1)" : "rgba(46,204,113,0.1)";
+  el.style.borderColor = type==="error" ? "#e74c3c" : "#2ecc71";
+  el.style.color       = type==="error" ? "#ff8a80" : "#69f0ae";
+}
+
+async function sendCopyFromList(id) {
+  var snap = await db.collection("requests").doc(id).get();
+  if (!snap.exists) return;
+  openSendCopyModal(snap.data(), id);
+}
+
+// ── Generate PDF ──────────────────────────────────────────────
+function generatePDF(r, notedByName, approvedByName) {
+  var jsPDF  = window.jspdf.jsPDF;
+  var pdf    = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+  var margin = 15, pageW = 210, cW = pageW-margin*2, y = 15;
+
+  // Header
+  pdf.setFillColor(10,10,10); pdf.rect(0,0,pageW,28,"F");
+  pdf.setTextColor(245,200,0); pdf.setFontSize(20); pdf.setFont("helvetica","bold");
+  pdf.text("MRF SYSTEM", margin, 12);
+  pdf.setTextColor(180,180,180); pdf.setFontSize(8); pdf.setFont("helvetica","normal");
+  pdf.text("MODIFICATION REQUEST FORM", margin, 18);
+  pdf.setFillColor(245,200,0); pdf.rect(pageW-margin-55,5,55,16,"F");
+  pdf.setTextColor(10,10,10); pdf.setFontSize(7); pdf.setFont("helvetica","bold");
+  pdf.text("CONTROL NO.", pageW-margin-27, 11, {align:"center"});
+  pdf.setFontSize(9); pdf.text(r.controlNo||"PENDING", pageW-margin-27, 17, {align:"center"});
+  y = 35;
+
+  // Section 1 - Basic Info
+  pdf.setFillColor(30,30,30); pdf.rect(margin,y,cW,7,"F");
+  pdf.setTextColor(245,200,0); pdf.setFontSize(8); pdf.setFont("helvetica","bold");
+  pdf.text("1. BASIC INFORMATION", margin+3, y+5); y += 10;
+  [[" Application Date",r.applicationDate||"—","Target Date",r.targetDate||"—"],
+   ["Part Number",r.partNumber||"—","Part Name",r.partName||"—"],
+   ["Prepared By",r.preparedBy||"—","Factory No.",r.factoryNo||"—"],
+   ["Department",r.departmentName||"—","Dept Code",r.departmentCode||"—"]
+  ].forEach(function(row) {
+    pdf.setTextColor(120,120,120); pdf.setFontSize(7); pdf.setFont("helvetica","normal");
+    pdf.text(row[0]+":", margin+2, y); pdf.text(row[2]+":", margin+cW/2+2, y);
+    pdf.setTextColor(30,30,30); pdf.setFontSize(8.5);
+    pdf.text(String(row[1]), margin+2, y+5); pdf.text(String(row[3]), margin+cW/2+2, y+5);
+    pdf.setDrawColor(220,220,220); pdf.line(margin,y+8,margin+cW,y+8); y+=12;
+  });
+  y += 4;
+
+  // Section 2 - Reasons
+  pdf.setFillColor(30,30,30); pdf.rect(margin,y,cW,7,"F");
+  pdf.setTextColor(245,200,0); pdf.setFontSize(8); pdf.setFont("helvetica","bold");
+  pdf.text("2. REASON FOR SUBMISSION", margin+3, y+5); y += 10;
+  var reasons = r.reasonsForSubmission||[];
+  ["New Part","Design Change","Material Change","Process Change","Supplier Change","Correction of Defect"].forEach(function(reason,i) {
+    var col=i%3, row2=Math.floor(i/3), rx=margin+col*(cW/3), ry=y+row2*8;
+    var checked=reasons.indexOf(reason)>-1;
+    pdf.setDrawColor(100,100,100);
+    pdf.setFillColor(checked?245:255,checked?200:255,checked?0:255);
+    pdf.rect(rx+2,ry-3.5,4,4,checked?"F":"S");
+    pdf.setTextColor(30,30,30); pdf.setFontSize(8); pdf.setFont("helvetica","normal");
+    pdf.text(reason,rx+8,ry);
+  });
+  y += 22;
+
+  // Section 3 - Change details
+  pdf.setFillColor(30,30,30); pdf.rect(margin,y,cW,7,"F");
+  pdf.setTextColor(245,200,0); pdf.setFontSize(8); pdf.setFont("helvetica","bold");
+  pdf.text("3. DETAILED CONTENT FOR CHANGE", margin+3, y+5); y += 10;
+  pdf.setTextColor(30,30,30); pdf.setFontSize(8.5); pdf.setFont("helvetica","normal");
+  var splitText = pdf.splitTextToSize(r.reasonsForChange||"—", cW-4);
+  pdf.text(splitText, margin+2, y); y += splitText.length*5+6;
+
+  // Section 4 - Alteration
+  pdf.setFillColor(30,30,30); pdf.rect(margin,y,cW,7,"F");
+  pdf.setTextColor(245,200,0); pdf.setFontSize(8); pdf.setFont("helvetica","bold");
+  pdf.text("4. ALTERATION OF STANDARD", margin+3, y+5); y += 10;
+  pdf.setFillColor(245,200,0);
+  pdf.rect(margin,y,cW/2,6,"F"); pdf.rect(margin+cW/2,y,cW/2,6,"F");
+  pdf.setTextColor(10,10,10); pdf.setFontSize(7.5); pdf.setFont("helvetica","bold");
+  pdf.text("STANDARD",margin+cW/4,y+4,{align:"center"});
+  pdf.text("ALTERATION",margin+cW*3/4,y+4,{align:"center"}); y+=6;
+  var alts = r.alterationOfStandard||[];
+  if (!alts.length) alts=[{standard:"—",alteration:"—"}];
+  alts.forEach(function(alt) {
+    pdf.setFillColor(250,250,250);
+    pdf.rect(margin,y,cW/2,7,"S"); pdf.rect(margin+cW/2,y,cW/2,7,"S");
+    pdf.setTextColor(30,30,30); pdf.setFontSize(8); pdf.setFont("helvetica","normal");
+    pdf.text(String(alt.standard||"—"),margin+3,y+5);
+    pdf.text(String(alt.alteration||"—"),margin+cW/2+3,y+5); y+=7;
+  });
+  y += 10;
+
+  // Signatures
+  if (y>230){pdf.addPage();y=20;}
+  pdf.setFillColor(30,30,30); pdf.rect(margin,y,cW,7,"F");
+  pdf.setTextColor(245,200,0); pdf.setFontSize(8); pdf.setFont("helvetica","bold");
+  pdf.text("SIGNATURES & APPROVAL", margin+3, y+5); y+=12;
+  var sigW=(cW-10)/3;
+  [{label:"PREPARED BY",name:r.preparedBy||"—"},{label:"NOTED BY",name:notedByName||"—"},{label:"APPROVED BY",name:approvedByName||"—"}].forEach(function(sig,i) {
+    var sx=margin+i*(sigW+5);
+    pdf.setDrawColor(200,200,200); pdf.rect(sx,y,sigW,24,"S");
+    pdf.setTextColor(150,150,150); pdf.setFontSize(6.5);
+    pdf.text(sig.label,sx+sigW/2,y+17,{align:"center"});
+    pdf.setTextColor(30,30,30); pdf.setFontSize(8); pdf.setFont("helvetica","bold");
+    pdf.text(sig.name,sx+sigW/2,y+27,{align:"center"});
+    pdf.setFont("helvetica","normal"); pdf.setTextColor(150,150,150); pdf.setFontSize(6);
+    pdf.text("Signature over printed name",sx+sigW/2,y+32,{align:"center"});
+  });
+
+  // Footer
+  pdf.setFillColor(10,10,10); pdf.rect(0,280,pageW,17,"F");
+  pdf.setTextColor(120,120,120); pdf.setFontSize(7);
+  pdf.text("MESCO Modification Request Form System",margin,287);
+  pdf.text("Generated: "+new Date().toLocaleString("en-PH"),pageW-margin,287,{align:"right"});
+  pdf.setTextColor(245,200,0);
+  pdf.text(r.controlNo||"PENDING",pageW/2,287,{align:"center"});
+
+  return pdf;
+}
+
+// ── Upload PDF to Cloudinary ──────────────────────────────────
+function uploadPDFToCloudinary(pdfBlob) {
+  return new Promise(function(resolve,reject) {
+    var fd = new FormData();
+    fd.append("file",pdfBlob,"mrf-request.pdf");
+    fd.append("upload_preset",UPLOAD_PRESET);
+    fd.append("folder","mrf-system/summaries");
+    fd.append("resource_type","raw");
+    var xhr = new XMLHttpRequest();
+    xhr.addEventListener("load",function(){ xhr.status===200?resolve(JSON.parse(xhr.responseText).secure_url):reject(new Error("PDF upload failed")); });
+    xhr.addEventListener("error",function(){reject(new Error("Network error"));});
+    xhr.open("POST","https://api.cloudinary.com/v1_1/"+CLOUD_NAME+"/raw/upload");
+    xhr.send(fd);
+  });
+}
+
+// ── Send Copy Email ───────────────────────────────────────────
+async function sendCopyEmail() {
+  var notedByName    = document.getElementById("notedByName").value.trim();
+  var notedByEmail   = document.getElementById("notedByEmail").value.trim();
+  var approvedByName  = document.getElementById("approvedByName").value.trim();
+  var approvedByEmail = document.getElementById("approvedByEmail").value.trim();
+
+  if (!notedByName||!notedByEmail)     {showSendAlert("Please fill in Noted By name and email.","error"); return;}
+  if (!approvedByName||!approvedByEmail){showSendAlert("Please fill in Approved By name and email.","error"); return;}
+
+  var btn = document.getElementById("sendEmailBtn");
+  btn.disabled=true; btn.textContent="⏳ Generating PDF...";
+
+  try {
+    var r  = currentSendRequest.data;
+    var id = currentSendRequest.id;
+
+    // 1. Generate & download PDF
+    var pdf     = generatePDF(r, notedByName, approvedByName);
+    var pdfBlob = pdf.output("blob");
+
+    // 2. Upload PDF to Cloudinary
+    btn.textContent="⏳ Uploading PDF...";
+    var pdfUrl = await uploadPDFToCloudinary(pdfBlob);
+
+    // 3. Send emails via Google Apps Script
+    btn.textContent="⏳ Sending emails...";
+    var recipients = [
+      {name:notedByName,   email:notedByEmail,   role:"Noted By"},
+      {name:approvedByName,email:approvedByEmail,role:"Approved By"},
+    ];
+    for (var i=0;i<recipients.length;i++) {
+      var rec = recipients[i];
+      await fetch(GAS_URL,{
+        method:"POST",
+        body:JSON.stringify({
+          toName:rec.name, toEmail:rec.email, role:rec.role,
+          controlNo:r.controlNo||"PENDING",
+          partName:r.partName||"—", partNumber:r.partNumber||"—",
+          department:r.departmentName||"—", preparedBy:r.preparedBy||"—",
+          date:r.applicationDate||new Date().toLocaleDateString("en-PH"),
+          reasons:(r.reasonsForSubmission||[]).join(", ")||"—",
+          reasonsForChange:r.reasonsForChange||"—",
+          requestLink:"https://mrf-system-management.web.app",
+          pdfUrl:pdfUrl,
+          notedByName:notedByName, approvedByName:approvedByName,
+        }),
+      });
+    }
+
+    // 4. Save to Firestore
+    await db.collection("requests").doc(id).update({
+      notedBy:    {name:notedByName,   email:notedByEmail},
+      approvedBy: {name:approvedByName, email:approvedByEmail},
+      pdfUrl:     pdfUrl,
+      sentForApprovalAt:firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt:        firebase.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 5. Download PDF locally
+    pdf.save("MRF-"+(r.controlNo||"request")+".pdf");
+
+    showSendAlert("✅ PDF sent to "+notedByEmail+" and "+approvedByEmail+"!","success");
+    toast("Emails sent! ✅","success");
+    btn.textContent="✅ SENT!";
+    setTimeout(function(){ closeModal(); btn.textContent="📧 GENERATE PDF & SEND"; btn.disabled=false; },2500);
+
+  } catch(e) {
+    showSendAlert("Failed: "+e.message,"error");
+    btn.disabled=false; btn.textContent="📧 GENERATE PDF & SEND";
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// INBOX SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+var DEPT_LABELS = {
+  ENG:"Engineering Dept", PROD:"Production Dept",
+  MAINT:"Maintenance Dept", PURCH:"Purchasing Dept", QA:"QA Admin"
+};
+
+var currentMessage   = null;
+var selectedSigFile  = null;
+var unsubscribeInbox = null;
+
+function startInboxListener() {
+  // Use polling instead of onSnapshot to avoid index/permission issues
+  checkInboxBadge();
+  // Poll every 30 seconds for new messages
+  if (window._inboxPollTimer) clearInterval(window._inboxPollTimer);
+  window._inboxPollTimer = setInterval(function() {
+    checkInboxBadge();
+    // Auto-refresh if inbox tab is open
+    if (document.getElementById("tab-inbox").classList.contains("active")) {
+      loadInbox();
+    }
+  }, 30000);
+}
+
+async function checkInboxBadge() {
+  try {
+    var deptCode = currentProfile.departmentCode;
+    var snap = await db.collection("inbox")
+      .where("to","==",deptCode)
+      .where("status","==","unread")
+      .get();
+    var badge = document.getElementById("inboxBadge");
+    if (snap.size > 0) {
+      badge.style.display="inline-flex";
+      badge.textContent=snap.size;
+    } else {
+      badge.style.display="none";
+    }
+  } catch(e) {
+    console.warn("Badge check failed:", e.code, e.message);
+  }
+}
+
+async function loadInbox() {
+  document.getElementById("inboxList").innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+  try {
+    var deptCode = currentProfile.departmentCode;
+    console.log("Loading inbox for dept:", deptCode);
+    
+    // Simple query - just filter by "to" field, no compound index needed
+    var snap = await db.collection("inbox")
+      .where("to","==",deptCode)
+      .get();
+    
+    console.log("Found", snap.size, "messages for", deptCode);
+    
+    // Apply client-side filtering
+    var filter = document.getElementById("inboxFilter").value;
+    var docs = snap.docs;
+    if (filter==="unread") {
+      docs = docs.filter(function(d){ return d.data().status==="unread"; });
+    } else if (filter && filter!=="unread") {
+      docs = docs.filter(function(d){ return d.data().type===filter; });
+    }
+    
+    // Sort client-side by createdAt descending
+    docs.sort(function(a,b){
+      var ta = a.data().createdAt ? a.data().createdAt.toMillis() : 0;
+      var tb = b.data().createdAt ? b.data().createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    
+    renderInbox(docs);
+  } catch(e){ 
+    console.error("Inbox load error:", e.code, e.message); 
+    toast("Inbox error: "+e.code+" - "+e.message,"error"); 
+  }
+}
+
+function renderInbox(docs) {
+  if (!docs.length) {
+    document.getElementById("inboxList").innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>NO MESSAGES</p></div>';
+    return;
+  }
+  document.getElementById("inboxList").innerHTML = docs.map(function(d) {
+    var m = d.data();
+    var time = m.createdAt ? m.createdAt.toDate().toLocaleString("en-PH") : "—";
+    var isUnread = m.status==="unread";
+    return '<div class="msg-card '+(isUnread?"unread ":"")+'type-'+m.type+' status-'+m.status+'" onclick="openMsgDetail(\''+d.id+'\')">'
+      +'<div class="msg-header">'
+        +'<span class="msg-from">'+(isUnread?'<span class="unread-dot"></span>':"")+'FROM: '+(DEPT_LABELS[m.from]||m.from)+'</span>'
+        +'<div style="display:flex;gap:8px;align-items:center;">'
+          +'<span class="msg-type-badge msg-type-'+m.type+'">'+m.type+'</span>'
+          +'<span class="msg-time">'+time+'</span>'
+        +'</div>'
+      +'</div>'
+      +'<div class="msg-subject">'+(isUnread?'<strong>':"")+m.subject+(isUnread?'</strong>':"")+'</div>'
+      +'<div class="msg-preview">'+(m.message||"").substring(0,80)+(m.message&&m.message.length>80?"...":"")+'</div>'
+      +(m.status!=="unread"?'<div style="margin-top:8px;font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);">STATUS: '+m.status.toUpperCase()+'</div>':"")
+    +'</div>';
+  }).join("");
+}
+
+async function openMsgDetail(msgId) {
+  var snap = await db.collection("inbox").doc(msgId).get();
+  if (!snap.exists) return;
+  var m = snap.data();
+  currentMessage = {id:msgId, data:m};
+  if (m.status==="unread") {
+    await db.collection("inbox").doc(msgId).update({status:"read"});
+    m.status = "read";
+  }
+  var time = m.createdAt ? m.createdAt.toDate().toLocaleString("en-PH") : "—";
+  document.getElementById("msg-detail-title").textContent   = m.subject||"MESSAGE";
+  document.getElementById("msg-detail-from").textContent    = DEPT_LABELS[m.from]||m.from;
+  document.getElementById("msg-detail-time").textContent    = time;
+  document.getElementById("msg-detail-message").textContent = m.message||"—";
+  document.getElementById("msg-detail-type-badge").className   = "msg-type-badge msg-type-"+m.type;
+  document.getElementById("msg-detail-type-badge").textContent = m.type;
+  document.getElementById("msg-request-info").style.display    = "none";
+  document.getElementById("msg-esig-section").style.display    = "none";
+  document.getElementById("msg-approval-section").style.display = "none";
+  document.getElementById("msgDetailAlert").style.display       = "none";
+
+  if (m.requestId) {
+    try {
+      var reqSnap = await db.collection("requests").doc(m.requestId).get();
+      if (reqSnap.exists) {
+        var r = reqSnap.data();
+        document.getElementById("msg-request-info").style.display = "block";
+        document.getElementById("msg-req-controlno").textContent  = r.controlNo||"PENDING";
+        document.getElementById("msg-req-partname").textContent   = (r.partName||"—")+" ("+(r.partNumber||"—")+")";
+        document.getElementById("msg-req-dept").textContent       = r.departmentName||"—";
+      }
+    } catch(e){ console.warn("Request fetch:",e); }
+  }
+
+  if (m.type==="esignature") {
+    document.getElementById("msg-esig-section").style.display = "block"; initSigUpload();
+    if (m.status==="signed" && m.signatureUrl) {
+      document.getElementById("sig-upload-wrap").style.display = "none";
+      document.getElementById("sig-done-wrap").style.display   = "block";
+      document.getElementById("sig-done-preview").src          = m.signatureUrl;
+    } else {
+      document.getElementById("sig-upload-wrap").style.display = "block";
+      document.getElementById("sig-done-wrap").style.display   = "none";
+      document.getElementById("sig-name").value = "";
+      document.getElementById("sigPreview").style.display = "none";
+      selectedSigFile = null;
+    }
+  }
+
+  if (m.type==="approval") {
+    document.getElementById("msg-approval-section").style.display = "block";
+    if (m.status==="approved"||m.status==="denied") {
+      document.getElementById("approval-action-wrap").style.display = "none";
+      document.getElementById("approval-done-wrap").style.display   = "block";
+      document.getElementById("approval-done-wrap").innerHTML =
+        '<div style="background:'+(m.status==="approved"?"rgba(46,204,113,0.1)":"rgba(231,76,60,0.1)")+';border:1px solid '+(m.status==="approved"?"rgba(46,204,113,0.4)":"rgba(231,76,60,0.4)")+';padding:14px;">'
+        +'<p style="font-family:var(--font-mono);font-size:0.8rem;color:'+(m.status==="approved"?"var(--success)":"var(--danger)")+';">'+(m.status==="approved"?"✅ APPROVED":"❌ DENIED")+'</p></div>';
+    } else {
+      document.getElementById("approval-action-wrap").style.display = "block";
+      document.getElementById("approval-done-wrap").style.display   = "none";
+    }
+  }
+
+  // Show attached file if any
+  if (m.attachUrl) {
+    document.getElementById("msg-attached-file").style.display = "block";
+    document.getElementById("msg-attached-link").href          = m.attachUrl;
+    document.getElementById("msg-attached-name").textContent   = m.attachName||"View Attached File";
+  } else {
+    document.getElementById("msg-attached-file").style.display = "none";
+  }
+
+  document.getElementById("msgDetailModal").classList.add("open");
+}
+
+function closeMsgDetail() {
+  document.getElementById("msgDetailModal").classList.remove("open");
+  currentMessage = null; selectedSigFile = null;
+  loadInbox();
+}
+
+function initSigUpload() {
+  var inp = document.getElementById("sigFileInput");
+  if (!inp || inp._sigBound) return;
+  inp._sigBound = true;
+  inp.addEventListener("change", function() {
+    if (!this.files[0]) return;
+    selectedSigFile = this.files[0];
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var p = document.getElementById("sigPreview");
+      p.src = e.target.result; p.style.display = "block";
+    };
+    reader.readAsDataURL(selectedSigFile);
+  });
+}
+
+function clearSignature() {
+  selectedSigFile = null;
+  document.getElementById("sigFileInput").value = "";
+  document.getElementById("sigPreview").style.display = "none";
+  document.getElementById("sigPreview").src = "";
+}
+
+async function submitSignature() {
+  if (!selectedSigFile) { showMsgAlert("Please upload your signature image first.","error"); return; }
+  var sigName = document.getElementById("sig-name").value.trim();
+  if (!sigName) { showMsgAlert("Please enter your name.","error"); return; }
+  var btn = document.getElementById("submitSigBtn");
+  btn.disabled=true; btn.textContent="⏳ Uploading...";
+  try {
+    var fd = new FormData();
+    fd.append("file",selectedSigFile);
+    fd.append("upload_preset",UPLOAD_PRESET);
+    fd.append("folder","mrf-system/signatures");
+    var sigUrl = await new Promise(function(resolve,reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.addEventListener("load",function(){ xhr.status===200?resolve(JSON.parse(xhr.responseText).secure_url):reject(new Error("Upload failed")); });
+      xhr.addEventListener("error",function(){reject(new Error("Network error"));});
+      xhr.open("POST","https://api.cloudinary.com/v1_1/"+CLOUD_NAME+"/upload");
+      xhr.send(fd);
+    });
+    await db.collection("inbox").doc(currentMessage.id).update({
+      status:"signed", signatureUrl:sigUrl, signedBy:sigName,
+      signedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    if (currentMessage.data.requestId) {
+      await db.collection("requests").doc(currentMessage.data.requestId).update({
+        eSignatureUrl:sigUrl, eSignedBy:sigName,
+        eSignedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+    await db.collection("inbox").add({
+      from:currentProfile.departmentCode, to:currentMessage.data.from,
+      type:"notification",
+      subject:"✅ Signature submitted — "+currentMessage.data.subject,
+      message:sigName+" has submitted their e-signature for: "+currentMessage.data.subject,
+      requestId:currentMessage.data.requestId||null,
+      status:"unread", createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    document.getElementById("sig-upload-wrap").style.display = "none";
+    document.getElementById("sig-done-wrap").style.display   = "block";
+    document.getElementById("sig-done-preview").src          = sigUrl;
+    showMsgAlert("✅ Signature submitted!","success");
+    toast("Signature submitted! ✅","success");
+  } catch(e){ showMsgAlert("Failed: "+e.message,"error"); }
+  btn.disabled=false; btn.textContent="✍️ SUBMIT SIGNATURE";
+}
+
+async function inboxApprove() {
+  if (!confirm("Approve this request?")) return;
+  await inboxDecision("approved","✅");
+}
+async function inboxDeny() {
+  if (!confirm("Deny this request?")) return;
+  await inboxDecision("denied","❌");
+}
+async function inboxDecision(status, icon) {
+  try {
+    await db.collection("inbox").doc(currentMessage.id).update({
+      status:status, decidedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    if (currentMessage.data.requestId) {
+      await db.collection("requests").doc(currentMessage.data.requestId).update({
+        status:status, updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+    await db.collection("inbox").add({
+      from:currentProfile.departmentCode, to:currentMessage.data.from,
+      type:"notification",
+      subject:icon+" Request "+status+" — "+currentMessage.data.subject,
+      message:"Your request has been "+status+" by "+(DEPT_LABELS[currentProfile.departmentCode]||currentProfile.departmentCode)+".",
+      requestId:currentMessage.data.requestId||null,
+      status:"unread", createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    document.getElementById("approval-action-wrap").style.display = "none";
+    document.getElementById("approval-done-wrap").style.display   = "block";
+    document.getElementById("approval-done-wrap").innerHTML =
+      '<div style="background:'+(status==="approved"?"rgba(46,204,113,0.1)":"rgba(231,76,60,0.1)")+';border:1px solid '+(status==="approved"?"rgba(46,204,113,0.4)":"rgba(231,76,60,0.4)")+';padding:14px;">'
+      +'<p style="font-family:var(--font-mono);font-size:0.8rem;color:'+(status==="approved"?"var(--success)":"var(--danger)")+';">'+icon+' '+status.toUpperCase()+'</p></div>';
+    showMsgAlert(icon+" Request "+status+"!","success");
+    toast("Request "+status+"! ✅","success");
+    loadDashboard();
+  } catch(e){ showMsgAlert("Failed: "+e.message,"error"); }
+}
+
+function showMsgAlert(msg,type) {
+  var el=document.getElementById("msgDetailAlert");
+  el.textContent=msg; el.style.display="block";
+  el.style.background=type==="error"?"rgba(231,76,60,0.1)":"rgba(46,204,113,0.1)";
+  el.style.borderColor=type==="error"?"#e74c3c":"#2ecc71";
+  el.style.color=type==="error"?"#ff8a80":"#69f0ae";
+}
+
+// ── Compose attachment & reply state ─────────────────────────
+var composeAttachFile = null;
+var composeReplyToId  = null;
+
+function initComposeAttach() {
+  // Use event delegation on the modal instead
+  var modal = document.getElementById("composeModal");
+  if (!modal || modal._attachBound) return;
+  modal._attachBound = true;
+  modal.addEventListener("change", function(e) {
+    if (e.target.id !== "composeFileInput") return;
+    var file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10*1024*1024) { toast("File too large (max 10MB)","error"); return; }
+    composeAttachFile = file;
+    document.getElementById("composeAttachName").textContent = file.name;
+    document.getElementById("composeAttachPreview").style.display = "flex";
+  });
+}
+
+function clearComposeAttach() {
+  composeAttachFile = null;
+  document.getElementById("composeFileInput").value = "";
+  document.getElementById("composeAttachPreview").style.display = "none";
+}
+
+function replyToMessage() {
+  if (!currentMessage) return;
+  var m = currentMessage.data;
+  composeReplyToId = currentMessage.id;
+  closeMsgDetail();
+  // Open compose pre-filled with reply info
+  openComposeModal().then(function() {
+    document.getElementById("c-to").value      = m.from;
+    document.getElementById("c-subject").value = "Re: " + (m.subject||"");
+    document.getElementById("c-type").value    = m.type||"general";
+    onComposeTypeChange();
+    if (m.requestId) {
+      document.getElementById("c-requestId").value = m.requestId;
+      document.getElementById("c-request-field").style.display = "block";
+    }
+  });
+}
+
+async function openComposeModal() {
+  document.getElementById("c-to").value="";
+  document.getElementById("c-type").value="general";
+  document.getElementById("c-subject").value="";
+  document.getElementById("c-message").value="";
+  document.getElementById("c-requestId").innerHTML='<option value="">— Select Request —</option>';
+  document.getElementById("c-request-field").style.display="none";
+  document.getElementById("composeAlert").style.display="none";
+  document.getElementById("sendMsgBtn").disabled=false;
+  document.getElementById("sendMsgBtn").textContent="📤 SEND";
+  document.getElementById("composeAttachPreview").style.display="none";
+  document.getElementById("composeProgressFill").style.width="0%";
+  composeAttachFile=null;
+  initComposeAttach();
+  try {
+    var snap = await db.collection("requests")
+      .where("createdBy","==",currentUser.uid)
+      .get();
+    snap.forEach(function(d){
+      var r=d.data();
+      if (r.status==="draft") return; // skip drafts
+      var opt=document.createElement("option");
+      opt.value=d.id;
+      opt.textContent=(r.controlNo||"PENDING")+" — "+(r.partName||"—")+" ["+r.status+"]";
+      document.getElementById("c-requestId").appendChild(opt);
+    });
+  } catch(e){ console.warn("Load requests:",e); }
+  document.getElementById("composeModal").classList.add("open");
+}
+
+function closeComposeModal() {
+  document.getElementById("composeModal").classList.remove("open");
+}
+
+function onComposeTypeChange() {
+  var type=document.getElementById("c-type").value;
+  document.getElementById("c-request-field").style.display=(type==="approval"||type==="esignature")?"block":"none";
+}
+
+// compose attachment state
+var composeAttachFile = null;
+var composeAttachUrl  = null;
+
+// composeFileInput listener is bound inside initComposeAttach() when modal opens
+
+function clearComposeAttach() {
+  composeAttachFile = null;
+  composeAttachUrl  = null;
+  document.getElementById("composeFileInput").value = "";
+  document.getElementById("composeAttachPreview").style.display = "none";
+  document.getElementById("composeUploadProgress").classList.remove("show");
+}
+
+async function sendMessage() {
+  var to      = document.getElementById("c-to").value;
+  var type    = document.getElementById("c-type").value;
+  var subject = document.getElementById("c-subject").value.trim();
+  var message = document.getElementById("c-message").value.trim();
+  var reqId   = document.getElementById("c-requestId").value||null;
+  document.getElementById("composeAlert").style.display="none";
+  if (!to)      { showComposeAlert("Please select a recipient.","error"); return; }
+  if (!subject) { showComposeAlert("Please enter a subject.","error"); return; }
+  if (!message) { showComposeAlert("Please enter a message.","error"); return; }
+  if ((type==="approval"||type==="esignature")&&!reqId) { showComposeAlert("Please attach a request.","error"); return; }
+  if (to===currentProfile.departmentCode) { showComposeAlert("Cannot send to your own department.","error"); return; }
+  var btn=document.getElementById("sendMsgBtn");
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> SENDING...';
+  try {
+    // Upload attachment if any
+    var attachUrl=null, attachName=null;
+    if (composeAttachFile) {
+      btn.innerHTML='<span class="spinner"></span> UPLOADING...';
+      var fd=new FormData();
+      fd.append("file",composeAttachFile);
+      fd.append("upload_preset",UPLOAD_PRESET);
+      fd.append("folder","mrf-system/inbox-attachments");
+      attachUrl = await new Promise(function(resolve,reject){
+        var xhr=new XMLHttpRequest();
+        xhr.upload.addEventListener("progress",function(e){ if(e.lengthComputable){ document.getElementById("composeProgressFill").style.width=Math.round(e.loaded/e.total*100)+"%"; }});
+        xhr.addEventListener("load",function(){ xhr.status===200?resolve(JSON.parse(xhr.responseText).secure_url):reject(new Error("Upload failed")); });
+        xhr.addEventListener("error",function(){reject(new Error("Network error"));});
+        xhr.open("POST","https://api.cloudinary.com/v1_1/"+CLOUD_NAME+"/upload");
+        xhr.send(fd);
+      });
+      attachName=composeAttachFile.name;
+    }
+    btn.innerHTML='<span class="spinner"></span> SENDING...';
+    var msgData={
+      from:currentProfile.departmentCode, fromName:currentProfile.departmentName,
+      to:to, type:type, subject:subject, message:message,
+      requestId:reqId||null, attachUrl:attachUrl||null, attachName:attachName||null,
+      status:"unread", replyTo:composeReplyToId||null,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    console.log("=== SENDING MESSAGE ===");
+    console.log("From:", msgData.from, "To:", msgData.to, "Type:", msgData.type);
+    console.log("Subject:", msgData.subject);
+    var ref = await db.collection("inbox").add(msgData);
+    console.log("=== MESSAGE SAVED === ID:", ref.id);
+    
+    // Verify by reading it back
+    var verify = await db.collection("inbox").doc(ref.id).get();
+    console.log("Verified in Firestore - to field:", verify.data().to, "from:", verify.data().from);
+    showComposeAlert("✅ Sent to "+(DEPT_LABELS[to]||to)+"!","success");
+    toast("Message sent! ✅","success");
+    btn.textContent="✅ SENT!";
+    composeAttachFile=null; composeAttachUrl=null; composeReplyToId=null;
+    setTimeout(function(){ closeComposeModal(); loadInbox(); },1500);
+  } catch(e){ console.error("Send error:",e); showComposeAlert("Failed: "+e.message,"error"); btn.disabled=false; btn.textContent="📤 SEND"; }
+}
+
+
+function showComposeAlert(msg,type) {
+  var el=document.getElementById("composeAlert");
+  el.textContent=msg; el.style.display="block";
+  el.style.background=type==="error"?"rgba(231,76,60,0.1)":"rgba(46,204,113,0.1)";
+  el.style.borderColor=type==="error"?"#e74c3c":"#2ecc71";
+  el.style.color=type==="error"?"#ff8a80":"#69f0ae";
+}
+</script>
+
+
+<!-- Compose Modal -->
+<div class="modal-overlay" id="composeModal">
+  <div class="modal-box" style="max-width:560px;">
+    <button class="modal-close" onclick="closeComposeModal()" type="button">✕</button>
+    <div class="modal-title">✉️ COMPOSE MESSAGE</div>
+    <div class="compose-field">
+      <label>Send To (Department)</label>
+      <select id="c-to">
+        <option value="" disabled selected>— Select Department —</option>
+        <option value="ENG">Engineering Department</option>
+        <option value="PROD">Production Department</option>
+        <option value="MAINT">Maintenance Department</option>
+        <option value="PURCH">Purchasing Department</option>
+        <option value="QA">Quality Assurance (Admin)</option>
+      </select>
+    </div>
+    <div class="compose-field">
+      <label>Message Type</label>
+      <select id="c-type" onchange="onComposeTypeChange()">
+        <option value="general">General Message</option>
+        <option value="approval">Request for Approval</option>
+        <option value="esignature">E-Signature Request</option>
+        <option value="notification">Notification</option>
+      </select>
+    </div>
+    <div class="compose-field" id="c-request-field" style="display:none">
+      <label>Attach Request</label>
+      <select id="c-requestId">
+        <option value="">— Select Request —</option>
+      </select>
+    </div>
+    <div class="compose-field">
+      <label>Subject</label>
+      <input type="text" id="c-subject" placeholder="Message subject..."/>
+    </div>
+    <div class="compose-field">
+      <label>Message</label>
+      <textarea id="c-message" rows="4" placeholder="Type your message here..."></textarea>
+    </div>
+    <div class="compose-field">
+      <label>Attach File (optional)</label>
+      <div class="sig-upload-area" id="composeAttachArea" style="padding:16px;">
+        <input type="file" id="composeFileInput" accept="image/*,application/pdf"/>
+        <div style="font-size:1.5rem;margin-bottom:4px;opacity:0.4;">📎</div>
+        <div class="upload-text">CLICK TO ATTACH A FILE — PDF, JPG, PNG max 10MB</div>
+      </div>
+      <div id="composeAttachPreview" style="display:none;margin-top:8px;padding:8px 12px;background:var(--gray2);border:1px solid var(--gray3);font-family:var(--font-mono);font-size:0.78rem;display:flex;align-items:center;justify-content:space-between;">
+        <span id="composeAttachName">—</span>
+        <button class="btn btn-ghost btn-sm" onclick="clearComposeAttach()" type="button">✕</button>
+      </div>
+      <div class="progress-wrap" id="composeUploadProgress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="composeProgressFill" style="width:0%"></div></div>
+        <div class="progress-label" id="composeProgressLabel">Uploading...</div>
+      </div>
+    </div>
+    <div id="composeAlert" style="display:none;padding:10px 14px;font-family:var(--font-mono);font-size:0.78rem;border-left:3px solid;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:12px;">
+      <button class="btn btn-ghost" onclick="closeComposeModal()" type="button" style="flex:1;">CANCEL</button>
+      <button class="btn btn-primary" id="sendMsgBtn" onclick="sendMessage()" type="button" style="flex:2;">📤 SEND</button>
+    </div>
+  </div>
+</div>
+
+<!-- Message Detail Modal -->
+<div class="modal-overlay" id="msgDetailModal">
+  <div class="modal-box" style="max-width:600px;">
+    <button class="modal-close" onclick="closeMsgDetail()" type="button">✕</button>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+      <div class="modal-title" style="margin-bottom:0;" id="msg-detail-title">MESSAGE</div>
+      <span id="msg-detail-type-badge" class="msg-type-badge">—</span>
+    </div>
+    <div style="background:var(--gray2);border:1px solid var(--gray3);padding:14px;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted);">FROM: <span id="msg-detail-from" style="color:var(--yellow);">—</span></span>
+        <span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);" id="msg-detail-time">—</span>
+      </div>
+      <div style="font-size:0.85rem;" id="msg-detail-message">—</div>
+    </div>
+    <div id="msg-request-info" style="display:none;background:rgba(245,200,0,0.06);border:1px solid rgba(245,200,0,0.2);padding:14px;margin-bottom:20px;">
+      <p style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">ATTACHED REQUEST</p>
+      <p id="msg-req-controlno" style="font-family:var(--font-mono);color:var(--yellow);font-size:0.82rem;">—</p>
+      <p id="msg-req-partname" style="font-size:0.85rem;margin-top:4px;">—</p>
+      <p id="msg-req-dept" style="font-size:0.78rem;color:var(--muted);margin-top:2px;font-family:var(--font-mono);">—</p>
+    </div>
+    <div id="msg-esig-section" style="display:none;">
+      <div style="background:rgba(155,89,182,0.08);border:1px solid rgba(155,89,182,0.3);padding:14px;margin-bottom:16px;">
+        <p style="font-family:var(--font-mono);font-size:0.65rem;color:#9b59b6;letter-spacing:1px;margin-bottom:4px;">E-SIGNATURE REQUIRED</p>
+        <p style="font-size:0.82rem;">Please upload your signature image to sign this document.</p>
+      </div>
+      <div id="sig-upload-wrap">
+        <div class="compose-field">
+          <label>Your Name (as it appears on signature)</label>
+          <input type="text" id="sig-name" placeholder="Full name for the document"/>
+        </div>
+        <div class="sig-upload-area" id="sigUploadArea">
+          <input type="file" id="sigFileInput" accept="image/*"/>
+          <div class="upload-icon">✍️</div>
+          <div class="upload-text">CLICK TO UPLOAD YOUR SIGNATURE IMAGE<br/>JPG, PNG — clear background preferred</div>
+        </div>
+        <img id="sigPreview" class="sig-preview" style="display:none;"/>
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="clearSignature()" type="button">CLEAR</button>
+          <button class="btn btn-primary" id="submitSigBtn" onclick="submitSignature()" type="button" style="flex:1;">✍️ SUBMIT SIGNATURE</button>
+        </div>
+      </div>
+      <div id="sig-done-wrap" style="display:none;">
+        <div style="background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.4);padding:14px;">
+          <p style="color:var(--success);font-family:var(--font-mono);font-size:0.8rem;">✅ SIGNATURE SUBMITTED</p>
+          <img id="sig-done-preview" style="max-width:200px;max-height:80px;margin-top:8px;display:block;"/>
+        </div>
+      </div>
+    </div>
+    <div id="msg-approval-section" style="display:none;">
+      <div id="approval-action-wrap">
+        <div style="background:rgba(52,152,219,0.08);border:1px solid rgba(52,152,219,0.3);padding:14px;margin-bottom:16px;">
+          <p style="font-family:var(--font-mono);font-size:0.65rem;color:var(--info);letter-spacing:1px;margin-bottom:4px;">ACTION REQUIRED</p>
+          <p style="font-size:0.82rem;">Please review the attached request and approve or deny.</p>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-success" onclick="inboxApprove()" type="button" style="flex:1;">✓ APPROVE</button>
+          <button class="btn btn-danger" onclick="inboxDeny()" type="button" style="flex:1;">✗ DENY</button>
+        </div>
+      </div>
+      <div id="approval-done-wrap" style="display:none;"></div>
+    </div>
+    <div id="msgDetailAlert" style="display:none;padding:10px 14px;font-family:var(--font-mono);font-size:0.78rem;border-left:3px solid;margin-top:16px;"></div>
+    <!-- Attached File in message -->
+    <div id="msg-attached-file" style="display:none;margin-top:16px;padding:12px;background:var(--gray2);border:1px solid var(--gray3);">
+      <p style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);margin-bottom:8px;">ATTACHED FILE</p>
+      <a id="msg-attached-link" href="#" target="_blank" style="color:var(--info);font-family:var(--font-mono);font-size:0.8rem;text-decoration:none;">📎 <span id="msg-attached-name">View File</span></a>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="closeMsgDetail()" type="button">CLOSE</button>
+      <button class="btn btn-outline btn-sm" id="replyBtn" onclick="replyToMessage()" type="button">↩️ REPLY</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
