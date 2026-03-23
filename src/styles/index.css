@@ -1,0 +1,67 @@
+/* ─────────────────────────────────────────────
+   MRF System — Global Styles
+   QAD-F-7.1.1.2 REV.10 | HS Technologies
+───────────────────────────────────────────── */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #ffffff;
+  color: #111111;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Brand Design Tokens ── */
+:root {
+  --brand-yellow:  #F5C200;
+  --brand-yellow-dark: #D4A800;
+  --brand-black:   #111111;
+  --brand-white:   #FFFFFF;
+  --brand-gray:    #888888;
+  --brand-light:   #FAFAFA;
+  --brand-border:  #E5E5E5;
+
+  /* Status Colors */
+  --status-pending-noter:     #FEF3C7;  /* amber light */
+  --status-pending-confirmer: #FED7AA;  /* orange light */
+  --status-qa-review:         #F3E8FF;  /* purple light */
+  --status-approved:          #DCFCE7;  /* green light */
+  --status-denied:            #FEE2E2;  /* red light */
+  --status-returned:          #FFEDD5;  /* orange light */
+}
+
+/* ── Utility Classes ── */
+.text-brand-yellow  { color: var(--brand-yellow); }
+.text-brand-black   { color: var(--brand-black); }
+.bg-brand-yellow    { background-color: var(--brand-yellow); }
+.bg-brand-black     { background-color: var(--brand-black); }
+
+/* ── Form Elements ── */
+input, select, textarea {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--brand-yellow);
+  outline-offset: 1px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #aaa; }
