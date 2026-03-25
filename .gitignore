@@ -1,28 +1,4 @@
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-dist-ssr/
-
-# Environment — NEVER commit real Firebase keys
-.env
-.env.local
-.env.production
-
-# Editor
-.vscode/settings.json
-.idea/
-
-# Logs
-*.log
-npm-debug.log*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project specific
-QAProject.zip
-*.zip
-vite.config.js.timestamp-*
+serviceAccountKey.json 
+node_modules/ 
+.firebase/ 
+mrf-system-management-firebase-adminsdk-fbsvc-36eb837102.json 
