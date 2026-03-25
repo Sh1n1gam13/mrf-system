@@ -217,7 +217,7 @@ export default function EvaluationForm({ requestId, user, onNavigate, onBack }) 
       })
     } else {
       toast.error('MRF Denied by QA', {
-        description: `Control No. ${controlNo} denied and returned to the preparer.`,
+        description: `Control No. ${controlNo} denied and returned to the Requester.`,
       })
     }
   }

@@ -1,164 +1,235 @@
 // ─────────────────────────────────────────────────────────────────
-// Dashboard.jsx
-// MRF Request Management System — HS Technologies (Phils.), Inc.
-// Main dashboard shell — UI only, logic to be wired after docs received
+// Dashboard.jsx — QA Dashboard
+// HS Technologies (Phils.), Inc. — MRF System
+//
+// Changes (Task 5):
+// - Status system updated to new statuses
+// - QA-specific status display labels
+// - Sidebar: Inbox added, badge renamed to QA Manager
+// - Bell notification dropdown (top bar)
+// - QA Review Queue → 2-card summary widget
+// - All MRF Requests table: Requester + Noted By + Conformed By columns
 // ─────────────────────────────────────────────────────────────────
 
 import { useState } from 'react'
-import { toast } from 'sonner'
-import EvaluationForm from './EvaluationForm'
-import OverallSummary from './OverallSummary'
-import MatrixPage     from './MatrixPage'
-import FinalApproved  from './FinalApproved'
-import SummaryPage    from './SummaryPage'                
+import { toast }         from 'sonner'
+import EvaluationForm    from './EvaluationForm'
+import OverallSummary    from './OverallSummary'
+import MatrixPage        from './MatrixPage'
+import FinalApproved     from './FinalApproved'
+import SummaryPage       from './SummaryPage'
 
-// ── Placeholder MRF data (replace with Firestore later) ──────────
+// ── Mock data ─────────────────────────────────────────────────────
 const MOCK_REQUESTS = [
-  { id: '4M-M-7900', partName: 'Brake Pad Assembly',    partNumber: 'BP-2201', department: 'Engineering', customer: 'TNPH',    date: '2026-03-10', status: 'pending_noted'     },
-  { id: '4M-M-7901', partName: 'Drive Shaft Coupling',  partNumber: 'DS-4402', department: 'Production',  customer: 'FDTP',    date: '2026-03-11', status: 'pending_forward'   },
-  { id: '4M-M-7902', partName: 'Filter Housing Unit',   partNumber: 'FH-1103', department: 'Engineering', customer: 'GLORY',   date: '2026-03-12', status: 'qa_review'         },
-  { id: '4M-M-7903', partName: 'Gear Box Seal',         partNumber: 'GB-3304', department: 'Production',  customer: 'SHINSEI', date: '2026-03-13', status: 'qa_draft'          },
-  { id: '4M-M-7904', partName: 'Coolant Pump Cover',    partNumber: 'CP-5505', department: 'Engineering', customer: 'SUZUCOH', date: '2026-03-14', status: 'qa_approved'       },
-  { id: '4M-M-7905', partName: 'Valve Spring Retainer', partNumber: 'VS-6606', department: 'Production',  customer: 'MTMP',    date: '2026-03-15', status: 'qa_denied'         },
-  { id: '4M-M-7906', partName: 'Piston Ring Set',       partNumber: 'PR-7707', department: 'Engineering', customer: 'JCM',     date: '2026-03-16', status: 'final_approved'    },
-  { id: '4M-M-7907', partName: 'Camshaft Bearing',      partNumber: 'CB-8808', department: 'Production',  customer: 'GLORY',   date: '2026-03-16', status: 'issuance'          },
+  { id: '4M-M-7900', partName: 'Brake Pad Assembly',    partNumber: 'BP-2201', customer: 'TNPH',    date: '2026-03-10',
+    status: 'pending_noted',
+    requester:   { name: 'R. Abanico', dept: 'Production' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering' }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production' }] },
+
+  { id: '4M-M-7901', partName: 'Drive Shaft Coupling',  partNumber: 'DS-4402', customer: 'FDTP',    date: '2026-03-11',
+    status: 'noted_signed',
+    requester:   { name: 'L. Santos', dept: 'Engineering' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production' }] },
+
+  { id: '4M-M-7902', partName: 'Filter Housing Unit',   partNumber: 'FH-1103', customer: 'GLORY',   date: '2026-03-12',
+    status: 'pending_requester_review',
+    requester:   { name: 'R. Abanico', dept: 'Production' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production', signed: true }, { name: 'P. Reyes', dept: 'Production', signed: true }] },
+
+  { id: '4M-M-7903', partName: 'Gear Box Seal',         partNumber: 'GB-3304', customer: 'SHINSEI', date: '2026-03-13',
+    status: 'qa_draft',
+    requester:   { name: 'C. Reyes', dept: 'Engineering' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production', signed: true }] },
+
+  { id: '4M-M-7904', partName: 'Coolant Pump Cover',    partNumber: 'CP-5505', customer: 'SUZUCOH', date: '2026-03-14',
+    status: 'awaiting_managers_approval',
+    requester:   { name: 'L. Santos', dept: 'Engineering' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }, { name: 'A. Cruz', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production', signed: true }] },
+
+  { id: '4M-M-7905', partName: 'Valve Spring Retainer', partNumber: 'VS-6606', customer: 'MTMP',    date: '2026-03-15',
+    status: 'qa_denied',
+    requester:   { name: 'R. Abanico', dept: 'Production' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production', signed: true }] },
+
+  { id: '4M-M-7906', partName: 'Piston Ring Set',       partNumber: 'PR-7707', customer: 'JCM',     date: '2026-03-16',
+    status: 'final_approved',
+    requester:   { name: 'C. Reyes', dept: 'Engineering' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production', signed: true }] },
+
+  { id: '4M-M-7907', partName: 'Camshaft Bearing',      partNumber: 'CB-8808', customer: 'GLORY',   date: '2026-03-16',
+    status: 'issuance',
+    requester:   { name: 'L. Santos', dept: 'Engineering' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production', signed: true }] },
+
+  { id: '4M-M-7908', partName: 'Oil Filter Housing',    partNumber: 'OF-9901', customer: 'TNPH',    date: '2026-03-17',
+    status: 'qa_review',
+    requester:   { name: 'R. Abanico', dept: 'Production' },
+    notedBy:     [{ name: 'J. Smith', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'M. Cruz', dept: 'Production', signed: true }] },
+
+  { id: '4M-M-7909', partName: 'Timing Belt Tensioner', partNumber: 'TB-1102', customer: 'FDTP',    date: '2026-03-17',
+    status: 'qa_review',
+    requester:   { name: 'C. Reyes', dept: 'Engineering' },
+    notedBy:     [{ name: 'A. Cruz', dept: 'Engineering', signed: true }],
+    conformedBy: [{ name: 'P. Reyes', dept: 'Production', signed: true }] },
 ]
 
-// ── Status config ─────────────────────────────────────────────────
-const STATUS = {
-  draft:             { label: 'Draft',                 bg: '#F3F4F6', color: '#374151', dot: '#9CA3AF' },
-  pending_noted:     { label: 'For Noting',            bg: '#FEF3C7', color: '#92400E', dot: '#F59E0B' },
-  pending_forward:   { label: 'Ready to Forward',      bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
-  pending_conformed: { label: 'For Confirmation',      bg: '#FED7AA', color: '#9A3412', dot: '#F97316' },
-  conformed_denied:  { label: 'Returned by Conformer', bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
-  pending_approval:  { label: 'For Your Approval',     bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
-  qa_review:         { label: 'For Evaluation',        bg: '#F3E8FF', color: '#6B21A8', dot: '#A855F7' },
-  qa_draft:          { label: 'Pending',               bg: '#FEF9C3', color: '#854D0E', dot: '#CA8A04' },
-  qa_approved:       { label: 'QA Approved',           bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
-  qa_denied:         { label: 'Denied',                bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
-  final_approved:    { label: 'Final Approved',        bg: '#DCFCE7', color: '#14532D', dot: '#16A34A' },
-  issuance:          { label: 'Issued',                bg: '#E0E7FF', color: '#3730A3', dot: '#6366F1' },
+// ── Mock notifications ────────────────────────────────────────────
+const MOCK_NOTIFS = [
+  { id: 'n1', type: 'eval',    message: '4M-M-7908 — Oil Filter Housing is awaiting QA Staff evaluation.',      date: '2026-03-17' },
+  { id: 'n2', type: 'eval',    message: '4M-M-7909 — Timing Belt Tensioner is awaiting QA Staff evaluation.',   date: '2026-03-17' },
+  { id: 'n3', type: 'manager', message: '4M-M-7904 — Coolant Pump Cover is awaiting Manager\'s approval.',      date: '2026-03-16' },
+  { id: 'n4', type: 'signed',  message: '4M-M-7906 has been signed by the President — ready for final processing.', date: '2026-03-16' },
+]
+
+// ── QA-specific status display labels ─────────────────────────────
+// These are what the QA Dashboard shows — simplified view labels
+const QA_STATUS_LABEL = {
+  pending_noted:              { label: 'Pending — Noting Stage',        bg: '#FEF3C7', color: '#92400E', dot: '#F59E0B' },
+  noted_signed:               { label: 'Pending — Noting Stage',        bg: '#FEF3C7', color: '#92400E', dot: '#F59E0B' },
+  pending_conformed:          { label: 'Pending — Conformation Stage',  bg: '#FED7AA', color: '#9A3412', dot: '#F97316' },
+  pending_requester_review:   { label: 'Pending — Requester Review',    bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
+  returned_by_requester:      { label: 'Pending — Requester Review',    bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
+  conformed_approved:         { label: 'Ready for QA Evaluation',       bg: '#F3E8FF', color: '#6B21A8', dot: '#A855F7' },
+  qa_review:                  { label: 'Ready for QA Evaluation',       bg: '#F3E8FF', color: '#6B21A8', dot: '#A855F7' },
+  qa_draft:                   { label: 'Ready for Manager\'s Evaluation', bg: '#FEF9C3', color: '#854D0E', dot: '#CA8A04' },
+  awaiting_managers_approval: { label: 'Awaiting Manager\'s Approval',  bg: '#E0E7FF', color: '#3730A3', dot: '#6366F1' },
+  qa_denied:                  { label: 'Returned by QA',                bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
+  qa_approved:                { label: 'QA Approved — Awaiting President', bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
+  final_approved:             { label: 'Final Approved — Ready for Issuance', bg: '#DCFCE7', color: '#14532D', dot: '#16A34A' },
+  issuance:                   { label: 'Issued',                        bg: '#E0E7FF', color: '#3730A3', dot: '#6366F1' },
+}
+
+// Full status config for filters
+const STATUS_FILTER_OPTIONS = {
+  pending_noted:              'For Noting',
+  noted_signed:               'Noted & Signed',
+  pending_conformed:          'For Confirmation',
+  pending_requester_review:   'Pending Requester Review',
+  returned_by_requester:      'Returned by Requester',
+  conformed_approved:         'Conformed & Approved',
+  qa_review:                  'QA Review',
+  qa_draft:                   'QA Draft',
+  awaiting_managers_approval: "Awaiting Manager's Approval",
+  qa_denied:                  'Returned by QA',
+  qa_approved:                'QA Approved',
+  final_approved:             'Final Approved',
+  issuance:                   'Issued',
 }
 
 // ── Nav items ─────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { id: 'dashboard',         label: 'Dashboard',          icon: IconDashboard  },
-  { id: 'matrix',            label: 'Matrix',             icon: IconMatrix     },
-  { id: 'pending_requests',  label: 'Pending Request',    icon: IconForm       },
-  { id: 'approved_requests', label: 'Approved Request',   icon: IconApproved   },
-  { id: 'denied_requests',   label: 'Denied Request',     icon: IconDenied     },
-  { id: 'final_approved',    label: 'Final Approved',     icon: IconFinal      },
-  { id: 'summary',           label: 'MRF Summary',        icon: IconDashboard  },
+  { id: 'dashboard',         label: 'Dashboard'        },
+  { id: 'matrix',            label: 'Matrix'           },
+  { id: 'inbox',             label: 'Inbox'            },
+  { id: 'pending_requests',  label: 'Pending Request'  },
+  { id: 'approved_requests', label: 'Approved Request' },
+  { id: 'denied_requests',   label: 'Denied Request'   },
+  { id: 'final_approved',    label: 'Final Approved'   },
+  { id: 'summary',           label: 'MRF Summary'      },
 ]
 
 // ── SVG Icons ─────────────────────────────────────────────────────
-function IconDashboard({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="1" y="1" width="6" height="6" rx="1" stroke={color} strokeWidth="1.2"/>
-      <rect x="9" y="1" width="6" height="6" rx="1" stroke={color} strokeWidth="1.2"/>
-      <rect x="1" y="9" width="6" height="6" rx="1" stroke={color} strokeWidth="1.2"/>
-      <rect x="9" y="9" width="6" height="6" rx="1" stroke={color} strokeWidth="1.2"/>
-    </svg>
-  )
+function IconDashboard({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" stroke={c} strokeWidth="1.2"/><rect x="9" y="1" width="6" height="6" rx="1" stroke={c} strokeWidth="1.2"/><rect x="1" y="9" width="6" height="6" rx="1" stroke={c} strokeWidth="1.2"/><rect x="9" y="9" width="6" height="6" rx="1" stroke={c} strokeWidth="1.2"/></svg>
 }
-function IconMatrix({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="1" y="1" width="14" height="14" rx="1.5" stroke={color} strokeWidth="1.2"/>
-      <line x1="1" y1="5.5"  x2="15" y2="5.5"  stroke={color} strokeWidth="1"/>
-      <line x1="1" y1="10.5" x2="15" y2="10.5" stroke={color} strokeWidth="1"/>
-      <line x1="5.5" y1="1"  x2="5.5" y2="15"  stroke={color} strokeWidth="1"/>
-    </svg>
-  )
+function IconMatrix({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="1.5" stroke={c} strokeWidth="1.2"/><line x1="1" y1="5.5" x2="15" y2="5.5" stroke={c} strokeWidth="1"/><line x1="1" y1="10.5" x2="15" y2="10.5" stroke={c} strokeWidth="1"/><line x1="5.5" y1="1" x2="5.5" y2="15" stroke={c} strokeWidth="1"/></svg>
 }
-function IconForm({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="1" width="12" height="14" rx="1.5" stroke={color} strokeWidth="1.2"/>
-      <line x1="5" y1="5"  x2="11" y2="5"  stroke={color} strokeWidth="1"/>
-      <line x1="5" y1="8"  x2="11" y2="8"  stroke={color} strokeWidth="1"/>
-      <line x1="5" y1="11" x2="9"  y2="11" stroke={color} strokeWidth="1"/>
-    </svg>
-  )
+function IconInbox({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="11" rx="1.5" stroke={c} strokeWidth="1.2"/><path d="M1 9h3.5l1.5 2h4l1.5-2H15" stroke={c} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
 }
-function IconApproved({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="1" width="12" height="14" rx="1.5" stroke={color} strokeWidth="1.2"/>
-      <path d="M5 8.5l2 2 4-4" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
+function IconForm({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke={c} strokeWidth="1.2"/><line x1="5" y1="5" x2="11" y2="5" stroke={c} strokeWidth="1"/><line x1="5" y1="8" x2="11" y2="8" stroke={c} strokeWidth="1"/><line x1="5" y1="11" x2="9" y2="11" stroke={c} strokeWidth="1"/></svg>
 }
-function IconDenied({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="1" width="12" height="14" rx="1.5" stroke={color} strokeWidth="1.2"/>
-      <line x1="6" y1="6" x2="10" y2="10" stroke={color} strokeWidth="1.4" strokeLinecap="round"/>
-      <line x1="10" y1="6" x2="6"  y2="10" stroke={color} strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  )
+function IconApproved({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke={c} strokeWidth="1.2"/><path d="M5 8.5l2 2 4-4" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
 }
-function IconFinal({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="1" width="12" height="14" rx="1.5" stroke={color} strokeWidth="1.2"/>
-      <path d="M5 9.5l2 2 4-5" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-      <line x1="5" y1="5" x2="11" y2="5" stroke={color} strokeWidth="1"/>
-    </svg>
-  )
+function IconDenied({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke={c} strokeWidth="1.2"/><line x1="6" y1="6" x2="10" y2="10" stroke={c} strokeWidth="1.4" strokeLinecap="round"/><line x1="10" y1="6" x2="6" y2="10" stroke={c} strokeWidth="1.4" strokeLinecap="round"/></svg>
+}
+function IconFinal({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke={c} strokeWidth="1.2"/><path d="M5 9.5l2 2 4-5" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><line x1="5" y1="5" x2="11" y2="5" stroke={c} strokeWidth="1"/></svg>
+}
+function IconSummary({ active }) {
+  const c = active ? '#F5C200' : 'rgba(255,255,255,0.4)'
+  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="1.5" stroke={c} strokeWidth="1.2"/><line x1="4" y1="5" x2="12" y2="5" stroke={c} strokeWidth="1"/><line x1="4" y1="8" x2="12" y2="8" stroke={c} strokeWidth="1"/><line x1="4" y1="11" x2="8" y2="11" stroke={c} strokeWidth="1"/></svg>
 }
 
-// ── Status Badge ──────────────────────────────────────────────────
+const NAV_ICONS = {
+  dashboard:         IconDashboard,
+  matrix:            IconMatrix,
+  inbox:             IconInbox,
+  pending_requests:  IconForm,
+  approved_requests: IconApproved,
+  denied_requests:   IconDenied,
+  final_approved:    IconFinal,
+  summary:           IconSummary,
+}
+
+// ── Status Badge (QA labels) ───────────────────────────────────────
 function StatusBadge({ status }) {
-  const cfg = STATUS[status] || { label: status, bg: '#F3F4F6', color: '#374151', dot: '#9CA3AF' }
+  const cfg = QA_STATUS_LABEL[status] || { label: status, bg: '#F3F4F6', color: '#374151', dot: '#9CA3AF' }
   return (
-    <span style={{
-      display:      'inline-flex',
-      alignItems:   'center',
-      gap:          '5px',
-      padding:      '3px 10px',
-      borderRadius: '20px',
-      background:   cfg.bg,
-      fontSize:     '11px',
-      fontWeight:   '600',
-      color:        cfg.color,
-      whiteSpace:   'nowrap',
-    }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px',
+      borderRadius: '20px', background: cfg.bg, fontSize: '11px', fontWeight: '600',
+      color: cfg.color, whiteSpace: 'nowrap' }}>
       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cfg.dot, display: 'inline-block', flexShrink: 0 }} />
       {cfg.label}
     </span>
   )
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────
-function StatCard({ label, value, accent, icon }) {
+// ── Noted By / Conformed By display format ─────────────────────────
+// 1 person  → "J. Reyes · Engineering"
+// 2 persons → "J. Reyes (Engineering) · and 1 other"
+// 3+ persons → "J. Reyes (Engineering) · and X others"
+function SignatoryDisplay({ signatories }) {
+  if (!signatories || signatories.length === 0) return <span style={{ color: '#bbb', fontSize: '12px' }}>—</span>
+  const first = signatories[0]
+  const rest  = signatories.length - 1
   return (
-    <div style={{
-      background:   '#fff',
-      border:       '0.5px solid #E5E5E5',
-      borderRadius: '10px',
-      padding:      '20px 22px',
-      borderTop:    `3px solid ${accent}`,
-      flex:         1,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <p style={{ margin: '0 0 8px', fontSize: '11px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase' }}>{label}</p>
-          <p style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: '#111', fontFamily: 'Georgia, serif' }}>{value}</p>
+    <div>
+      {signatories.length === 1 ? (
+        <div style={{ fontSize: '12px', color: '#111', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {first.signed && <span style={{ color: '#1D9E75', fontSize: '11px', fontWeight: '700' }}>✓</span>}
+          {first.name}
         </div>
-        <div style={{ width: '36px', height: '36px', background: '#F9F9F9', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {icon}
+      ) : (
+        <div style={{ fontSize: '12px', color: '#111', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {first.signed && <span style={{ color: '#1D9E75', fontSize: '11px', fontWeight: '700' }}>✓</span>}
+          {first.name} ({first.dept})
         </div>
-      </div>
+      )}
+      {rest > 0 && (
+        <div style={{ fontSize: '11px', color: '#888', marginTop: '1px' }}>
+          and {rest} other{rest > 1 ? 's' : ''}
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Main Dashboard Component ──────────────────────────────────────
 // ── Shared inbox table ────────────────────────────────────────────
-function InboxTable({ title, subtitle, accentColor, requests, actionLabel, actionStyle, onAction, emptyMsg }) {
-  const thSt = { padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', background: '#FAFAFA', borderBottom: '0.5px solid #F0F0F0', whiteSpace: 'nowrap' }
+function InboxTable({ title, subtitle, accentColor, requests, actionLabel, onAction, emptyMsg }) {
+  const thSt = { padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: '#888',
+    letterSpacing: '1px', textTransform: 'uppercase', background: '#FAFAFA',
+    borderBottom: '0.5px solid #F0F0F0', whiteSpace: 'nowrap' }
   return (
     <div style={{ padding: '32px', fontFamily: 'Arial, sans-serif' }}>
       <div style={{ marginBottom: '24px' }}>
@@ -181,34 +252,28 @@ function InboxTable({ title, subtitle, accentColor, requests, actionLabel, actio
               </tr>
             </thead>
             <tbody>
-              {requests.map((req, i) => {
-                const s = STATUS[req.status] || {}
-                return (
-                  <tr key={req.id} style={{ borderBottom: i < requests.length - 1 ? '0.5px solid #F0F0F0' : 'none' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                    <td style={{ padding: '13px 14px', fontFamily: 'monospace', fontWeight: '700', color: '#111' }}>{req.id}</td>
-                    <td style={{ padding: '13px 14px', fontWeight: '600', color: '#111' }}>{req.partName}</td>
-                    <td style={{ padding: '13px 14px', color: '#888', fontFamily: 'monospace', fontSize: '12px' }}>{req.partNumber}</td>
-                    <td style={{ padding: '13px 14px', color: '#555' }}>{req.department}</td>
-                    <td style={{ padding: '13px 14px', color: '#888', whiteSpace: 'nowrap' }}>{req.date}</td>
-                    <td style={{ padding: '13px 14px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', background: s.bg, color: s.color, borderRadius: '20px', fontSize: '11px', fontWeight: '700' }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: s.dot }} />{s.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: '13px 14px' }}>
-                      <button onClick={() => onAction(req.id)}
-                        style={{ padding: '7px 16px', background: accentColor, color: actionStyle?.color || '#fff', border: actionStyle?.border || 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial', transition: 'all 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-                        onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                      >
-                        {actionLabel}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
+              {requests.map((req, i) => (
+                <tr key={req.id}
+                  style={{ borderBottom: i < requests.length - 1 ? '0.5px solid #F0F0F0' : 'none' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                  <td style={{ padding: '13px 14px', fontFamily: 'monospace', fontWeight: '700', color: '#111' }}>{req.id}</td>
+                  <td style={{ padding: '13px 14px', fontWeight: '600', color: '#111' }}>{req.partName}</td>
+                  <td style={{ padding: '13px 14px', color: '#888', fontFamily: 'monospace', fontSize: '12px' }}>{req.partNumber}</td>
+                  <td style={{ padding: '13px 14px', color: '#555' }}>{req.requester?.dept || '—'}</td>
+                  <td style={{ padding: '13px 14px', color: '#888', whiteSpace: 'nowrap' }}>{req.date}</td>
+                  <td style={{ padding: '13px 14px' }}><StatusBadge status={req.status} /></td>
+                  <td style={{ padding: '13px 14px' }}>
+                    <button onClick={() => onAction(req.id)}
+                      style={{ padding: '7px 16px', background: accentColor, color: '#fff', border: 'none',
+                        borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                      onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                      {actionLabel}
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
@@ -217,62 +282,7 @@ function InboxTable({ title, subtitle, accentColor, requests, actionLabel, actio
   )
 }
 
-function PendingInbox({ requests, onEvaluate }) {
-  return (
-    <InboxTable
-      title="Pending Request"
-      subtitle="Drafts saved by QA staff — awaiting QA Manager's final check"
-      accentColor="#111"
-      actionLabel="Complete →"
-      requests={requests}
-      onAction={onEvaluate}
-      emptyMsg="No pending drafts awaiting manager review."
-    />
-  )
-}
-
-function ApprovedInbox({ requests, onEvaluate }) {
-  return (
-    <InboxTable
-      title="Approved Request"
-      subtitle="MRFs pending QA evaluation"
-      accentColor="#111"
-      actionLabel="Evaluate →"
-      requests={requests}
-      onAction={onEvaluate}
-      emptyMsg="No MRFs currently awaiting evaluation."
-    />
-  )
-}
-
-function DeniedInbox({ requests, onReturn }) {
-  return (
-    <InboxTable
-      title="Denied Request"
-      subtitle="MRFs denied by QA — return to preparer"
-      accentColor="#EF4444"
-      actionLabel="↩ Return"
-      requests={requests}
-      onAction={onReturn}
-      emptyMsg="No denied MRFs at this time."
-    />
-  )
-}
-
-function FinalApprovedInbox({ requests, onView }) {
-  return (
-    <InboxTable
-      title="Final Approved"
-      subtitle="MRFs signed by QA Manager or President"
-      accentColor="#166534"
-      actionLabel="View →"
-      requests={requests}
-      onAction={onView}
-      emptyMsg="No final approved MRFs yet."
-    />
-  )
-}
-
+// ── Main Dashboard ────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout, onNavigate }) {
   const [activeNav,    setActiveNav]    = useState('dashboard')
   const [searchQuery,  setSearchQuery]  = useState('')
@@ -282,11 +292,11 @@ export default function Dashboard({ user, onLogout, onNavigate }) {
   const [summaryEval,  setSummaryEval]  = useState(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [pendingNav,   setPendingNav]   = useState(null)
+  const [notifOpen,    setNotifOpen]    = useState(false)
+  const [dismissedIds, setDismissedIds] = useState([])
 
-  // Is user on a subpage with unsaved work?
   const isOnSubpage = !!(evaluatingId || summaryId)
 
-  // ── Nav click — intercept if on a subpage ──────────────────────
   const handleNavClick = (id) => {
     if (isOnSubpage) { setPendingNav(id); setConfirmLeave(true) }
     else { setActiveNav(id) }
@@ -297,65 +307,57 @@ export default function Dashboard({ user, onLogout, onNavigate }) {
   }
   const cancelNav = () => { setPendingNav(null); setConfirmLeave(false) }
 
-  // ── Handle navigate — intercept 'evaluate' and 'summary' ────────
   const handleNavigate = (dest, id, evalData) => {
     if (dest === 'evaluate') { setSummaryId(null); setEvaluatingId(id); return }
     if (dest === 'summary')  { setEvaluatingId(null); setSummaryId(id); setSummaryEval(evalData || null); return }
     onNavigate && onNavigate(dest, id)
   }
 
-  // ── Stats — overall counts (replace with Firestore aggregation later)
-  const total     = MOCK_REQUESTS.length
-  const qaQueue   = MOCK_REQUESTS.filter(r => r.status === 'qa_review').length
-  const approved  = MOCK_REQUESTS.filter(r => ['qa_approved','final_approved','issuance'].includes(r.status)).length
-  const denied    = MOCK_REQUESTS.filter(r => r.status === 'qa_denied').length
-  const pending   = MOCK_REQUESTS.filter(r => r.status === 'qa_draft').length
-  const returned  = MOCK_REQUESTS.filter(r => r.status === 'qa_denied').length
+  // ── Counts ────────────────────────────────────────────────────
+  const total              = MOCK_REQUESTS.length
+  const qaStaffQueue       = MOCK_REQUESTS.filter(r => ['qa_review','conformed_approved'].includes(r.status)).length
+  const managerQueue       = MOCK_REQUESTS.filter(r => r.status === 'awaiting_managers_approval').length
+  const qaQueue            = qaStaffQueue  // for badge
+  const approved           = MOCK_REQUESTS.filter(r => ['qa_approved','final_approved','issuance'].includes(r.status)).length
+  const denied             = MOCK_REQUESTS.filter(r => r.status === 'qa_denied').length
+  const pending            = MOCK_REQUESTS.filter(r => r.status === 'qa_draft').length
 
-  // ── Requests needing QA evaluation
-  const toEvaluate = MOCK_REQUESTS.filter(r => r.status === 'qa_review')
+  // ── Notifications ─────────────────────────────────────────────
+  const activeNotifs = MOCK_NOTIFS.filter(n => !dismissedIds.includes(n.id))
 
-  // ── Filter table
+  // ── Filtered table ────────────────────────────────────────────
   const filtered = MOCK_REQUESTS.filter(r => {
     const q = searchQuery.toLowerCase()
     const matchSearch = q === '' ||
       r.id.toLowerCase().includes(q) ||
       r.partName.toLowerCase().includes(q) ||
       r.partNumber.toLowerCase().includes(q) ||
-      r.department.toLowerCase().includes(q)
+      (r.requester?.name || '').toLowerCase().includes(q) ||
+      (r.requester?.dept || '').toLowerCase().includes(q)
     const matchStatus = statusFilter === 'all' || r.status === statusFilter
     return matchSearch && matchStatus
   })
 
-  // User initials
-  const initials = (user?.name || 'QA')
-    .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  const initials = (user?.name || 'QA').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  const today    = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Arial, Helvetica, sans-serif', background: '#F5F5F5' }}>
 
-      {/* ── Leave page confirmation dialog ───────────────────────── */}
+      {/* ── Leave page confirmation ──────────────────────────────── */}
       {confirmLeave && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 32px', maxWidth: '380px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', fontFamily: 'Arial' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 32px', maxWidth: '380px', width: '90%', fontFamily: 'Arial' }}>
             <div style={{ width: '44px', height: '44px', background: '#FEF3C7', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', marginBottom: '16px' }}>⚠️</div>
             <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: '700', color: '#111' }}>Leave this page?</h3>
-            <p style={{ margin: '0 0 24px', fontSize: '13px', color: '#666', lineHeight: '1.5' }}>
-              Unsaved changes will be lost. Are you sure you want to leave the current page?
-            </p>
+            <p style={{ margin: '0 0 24px', fontSize: '13px', color: '#666', lineHeight: '1.5' }}>Unsaved changes will be lost.</p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button onClick={cancelNav}
-                style={{ padding: '9px 20px', background: 'transparent', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '13px', color: '#555', cursor: 'pointer', fontWeight: '600' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = '#aaa'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = '#E5E5E5'}
-              >
+                style={{ padding: '9px 20px', background: 'transparent', border: '1px solid #E5E5E5', borderRadius: '6px', fontSize: '13px', color: '#555', cursor: 'pointer', fontWeight: '600' }}>
                 Stay on Page
               </button>
               <button onClick={confirmNav}
-                style={{ padding: '9px 20px', background: '#EF4444', border: 'none', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', fontWeight: '700' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#DC2626'}
-                onMouseLeave={e => e.currentTarget.style.background = '#EF4444'}
-              >
+                style={{ padding: '9px 20px', background: '#EF4444', border: 'none', borderRadius: '6px', fontSize: '13px', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>
                 Leave Page
               </button>
             </div>
@@ -364,22 +366,15 @@ export default function Dashboard({ user, onLogout, onNavigate }) {
       )}
 
       {/* ── SIDEBAR ─────────────────────────────────────────────── */}
-      <div style={{
-        width: '240px', flexShrink: 0, background: '#111',
-        display: 'flex', flexDirection: 'column',
-        height: '100vh', position: 'sticky', top: 0,
-      }}>
+      <div style={{ width: '240px', flexShrink: 0, background: '#111', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }}>
         <div style={{ height: '4px', background: '#F5C200', flexShrink: 0 }} />
 
         {/* Logo */}
         <div style={{ padding: '20px 20px 16px', borderBottom: '0.5px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img
-              src="/hst-logo.jpg"
-              alt="HS Technologies Logo"
+            <img src="/hst-logo.jpg" alt="HS Technologies"
               style={{ width: '44px', height: '44px', objectFit: 'contain', flexShrink: 0 }}
-              onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }}
-            />
+              onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }} />
             <div style={{ display:'none', width:'44px', height:'44px', background:'#F5C200', alignItems:'center', justifyContent:'center', fontFamily:'monospace', fontWeight:'700', fontSize:'12px', color:'#111', flexShrink:0 }}>HST</div>
             <div>
               <p style={{ margin: 0, fontSize: '13px', letterSpacing: '2px', color: '#F5C200', textTransform: 'uppercase', fontWeight: '700' }}>HS Technologies</p>
@@ -388,57 +383,41 @@ export default function Dashboard({ user, onLogout, onNavigate }) {
           </div>
         </div>
 
-        {/* QA Admin badge */}
+        {/* QA  badge */}
         <div style={{ padding: '10px 20px', borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
-          <span style={{
-            display: 'inline-block', padding: '3px 10px',
-            background: 'rgba(245,194,0,0.15)', border: '0.5px solid rgba(245,194,0,0.3)',
-            borderRadius: '20px', fontSize: '10px', color: '#F5C200',
-            fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase',
-          }}>
-            QA Admin
+          <span style={{ display: 'inline-block', padding: '3px 10px', background: 'rgba(245,194,0,0.15)',
+            border: '0.5px solid rgba(245,194,0,0.3)', borderRadius: '20px', fontSize: '10px',
+            color: '#F5C200', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            Quality Assurance
           </span>
         </div>
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ id, label }) => {
             const isActive = activeNav === id
+            const Icon     = NAV_ICONS[id]
             return (
-              <button
-                key={id}
-                onClick={() => handleNavClick(id)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: '11px',
+              <button key={id} onClick={() => handleNavClick(id)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '11px',
                   padding: '10px 20px', background: isActive ? 'rgba(245,194,0,0.12)' : 'transparent',
                   border: 'none', borderLeft: isActive ? '3px solid #F5C200' : '3px solid transparent',
                   cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-                  color: isActive ? '#F5C200' : 'rgba(255,255,255,0.45)',
-                }}
+                  color: isActive ? '#F5C200' : 'rgba(255,255,255,0.45)' }}
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
-              >
-                <span style={{ flexShrink: 0 }}><Icon size={15} color={isActive ? '#F5C200' : 'rgba(255,255,255,0.4)'} /></span>
-                <span style={{ fontSize: '12px', fontWeight: isActive ? '700' : '400', lineHeight: '1.3' }}>
-                  {label}
-                </span>
-                {/* QA Review count badge on dashboard nav */}
-                {id === 'dashboard' && qaQueue > 0 && (
-                  <span style={{
-                    marginLeft: 'auto', minWidth: '18px', height: '18px',
-                    background: '#EF4444', borderRadius: '9px', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: '10px', color: '#fff', fontWeight: '700', padding: '0 5px',
-                  }}>{qaQueue}</span>
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
+                <span style={{ flexShrink: 0 }}><Icon active={isActive} /></span>
+                <span style={{ fontSize: '12px', fontWeight: isActive ? '700' : '400', lineHeight: '1.3' }}>{label}</span>
+                {/* Badges */}
+                {id === 'inbox' && qaStaffQueue > 0 && (
+                  <span style={{ marginLeft: 'auto', minWidth: '18px', height: '18px', background: '#A855F7', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', fontWeight: '700', padding: '0 5px' }}>
+                    {qaStaffQueue}
+                  </span>
                 )}
-                {/* Pending draft badge on Pending Request nav item */}
-                {id === 'pending_requests' && pending > 0 && (
-                  <span style={{
-                    marginLeft: 'auto', minWidth: '18px', height: '18px',
-                    background: '#CA8A04', borderRadius: '9px', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: '10px', color: '#fff', fontWeight: '700', padding: '0 5px',
-                  }}>{pending}</span>
+                {id === 'pending_requests' && managerQueue > 0 && (
+                  <span style={{ marginLeft: 'auto', minWidth: '18px', height: '18px', background: '#6366F1', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', fontWeight: '700', padding: '0 5px' }}>
+                    {managerQueue}
+                  </span>
                 )}
               </button>
             )
@@ -448,32 +427,16 @@ export default function Dashboard({ user, onLogout, onNavigate }) {
         {/* User + Sign Out */}
         <div style={{ padding: '16px 20px', borderTop: '0.5px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            <div style={{
-              width: '32px', height: '32px', borderRadius: '50%', background: '#F5C200',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '11px', fontWeight: '700', color: '#111', flexShrink: 0,
-            }}>{initials}</div>
+            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#F5C200', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: '#111', flexShrink: 0 }}>{initials}</div>
             <div style={{ overflow: 'hidden' }}>
-              <p style={{ margin: 0, fontSize: '12px', color: '#fff', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {user?.name || 'QA Admin'}
-              </p>
-              <p style={{ margin: 0, fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>
-                Quality Assurance
-              </p>
+              <p style={{ margin: 0, fontSize: '12px', color: '#fff', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'QA Manager'}</p>
+              <p style={{ margin: 0, fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>Quality Assurance</p>
             </div>
           </div>
-          <button
-            onClick={onLogout}
-            style={{
-              width: '100%', padding: '8px', background: 'rgba(255,255,255,0.05)',
-              border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: '6px',
-              color: 'rgba(255,255,255,0.4)', fontSize: '11px', letterSpacing: '1px',
-              textTransform: 'uppercase', cursor: 'pointer',
-              fontFamily: 'Arial, Helvetica, sans-serif', transition: 'all 0.15s',
-            }}
+          <button onClick={onLogout}
+            style={{ width: '100%', padding: '8px', background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Arial', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
-          >
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}>
             Sign Out
           </button>
         </div>
@@ -483,276 +446,312 @@ export default function Dashboard({ user, onLogout, onNavigate }) {
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
         {/* Top bar */}
-        <div style={{
-          background: '#fff', borderBottom: '0.5px solid #E5E5E5',
-          padding: '16px 28px', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', flexShrink: 0,
-          position: 'sticky', top: 0, zIndex: 10,
-        }}>
+        <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E5E5', padding: '16px 28px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexShrink: 0, position: 'sticky', top: 0, zIndex: 10 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#111', fontFamily: 'Georgia, serif' }}>
-              QA Admin Dashboard
+              Welcome, {user?.name?.split(' ')[0] || 'QA'}
             </h1>
-            <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>
-              Overall request management · QAD-F-7.1.1.2 REV.10
-            </p>
+            <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>Quality Assurance · {today}</p>
           </div>
-          {/* QA Review alert pill */}
-          {qaQueue > 0 && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              background: '#FEF3C7', border: '1px solid #FDE68A',
-              borderRadius: '20px', padding: '6px 14px',
-            }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-              <span style={{ fontSize: '12px', color: '#92400E', fontWeight: '700' }}>
-                {qaQueue} request{qaQueue > 1 ? 's' : ''} awaiting evaluation
-              </span>
-            </div>
-          )}
+
+          {/* ── Bell notification dropdown ─────────────────────── */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setNotifOpen(o => !o)}
+              style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '7px',
+                padding: '7px 14px', background: '#111', border: 'none', borderRadius: '8px',
+                cursor: 'pointer', color: '#fff', fontSize: '12px', fontWeight: '600', fontFamily: 'Arial' }}>
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#F5C200" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+              </svg>
+              Notifications
+              {activeNotifs.length > 0 && (
+                <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#EF4444', color: '#fff', fontSize: '10px', fontWeight: '700', minWidth: '18px', height: '18px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
+                  {activeNotifs.length}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setNotifOpen(false)} />
+                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: '384px', background: '#fff', border: '0.5px solid #E5E5E5', borderRadius: '12px', zIndex: 20, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '0.5px solid #F0F0F0' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#111' }}>Notifications</span>
+                    {activeNotifs.length > 0 && (
+                      <button onClick={() => setDismissedIds(MOCK_NOTIFS.map(n => n.id))}
+                        style={{ fontSize: '11px', color: '#F5C200', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '600', padding: 0 }}>
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  <ul style={{ listStyle: 'none', margin: 0, padding: '6px', maxHeight: '320px', overflowY: 'auto' }}>
+                    {activeNotifs.length === 0 ? (
+                      <li style={{ padding: '28px', textAlign: 'center' }}>
+                        <p style={{ margin: '0 0 6px', fontSize: '20px' }}>🔔</p>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#bbb' }}>No new notifications</p>
+                      </li>
+                    ) : activeNotifs.map(n => {
+                      const isEval    = n.type === 'eval'
+                      const isManager = n.type === 'manager'
+                      const bg    = isEval ? '#F5F3FF' : isManager ? '#EFF6FF' : '#F0FDF4'
+                      const iconBg = isEval ? '#A855F7' : isManager ? '#6366F1' : '#1D9E75'
+                      const icon  = isEval ? '↗' : isManager ? '✓' : '★'
+                      const textColor = isEval ? '#6B21A8' : isManager ? '#3730A3' : '#166534'
+                      return (
+                        <li key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px', borderRadius: '8px', background: bg, marginBottom: '4px' }}>
+                          <div style={{ marginTop: '2px', width: '26px', height: '26px', borderRadius: '50%', background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ color: '#fff', fontSize: '11px', fontWeight: '700' }}>{icon}</span>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ margin: 0, fontSize: '12px', color: textColor, lineHeight: '1.5' }}>{n.message}</p>
+                            <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#aaa' }}>{n.date}</p>
+                          </div>
+                          <button onClick={() => setDismissedIds(prev => [...prev, n.id])}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', color: textColor, opacity: 0.5, flexShrink: 0, padding: '0 2px', lineHeight: 1 }}>×</button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Page body */}
         <div style={{ padding: '24px 28px', flex: 1 }}>
 
-          {/* ── Evaluation Form ─────────────────────────────────── */}
+          {/* ── Subpage routing ──────────────────────────────────── */}
           {evaluatingId ? (
             <EvaluationForm requestId={evaluatingId} user={user} onNavigate={handleNavigate} onBack={() => setEvaluatingId(null)} />
           ) : summaryId ? (
             <OverallSummary requestId={summaryId} evalData={summaryEval} user={user} onNavigate={handleNavigate} onBack={() => setSummaryId(null)} />
           ) : activeNav === 'matrix' ? (
             <MatrixPage />
+          ) : activeNav === 'inbox' ? (
+            <InboxTable
+              title="Inbox"
+              subtitle="MRFs awaiting QA Staff evaluation"
+              accentColor="#6B21A8"
+              actionLabel="Evaluate →"
+              requests={MOCK_REQUESTS.filter(r => ['qa_review','conformed_approved'].includes(r.status))}
+              onAction={id => handleNavigate('evaluate', id)}
+              emptyMsg="No MRFs currently awaiting evaluation."
+            />
           ) : activeNav === 'pending_requests' ? (
-            <PendingInbox
-              requests={MOCK_REQUESTS.filter(r => r.status === 'qa_draft')}
-              onEvaluate={id => handleNavigate('evaluate', id)}
+            <InboxTable
+              title="Pending Request"
+              subtitle="Awaiting Manager's final approval"
+              accentColor="#6366F1"
+              actionLabel="Complete →"
+              requests={MOCK_REQUESTS.filter(r => r.status === 'awaiting_managers_approval')}
+              onAction={id => handleNavigate('evaluate', id)}
+              emptyMsg="No pending drafts awaiting manager review."
             />
           ) : activeNav === 'approved_requests' ? (
-            <ApprovedInbox
-              requests={MOCK_REQUESTS.filter(r => r.status === 'qa_review')}
-              onEvaluate={id => handleNavigate('evaluate', id)}
+            <InboxTable
+              title="Approved Request"
+              subtitle="MRFs approved by QA"
+              accentColor="#1D9E75"
+              actionLabel="View →"
+              requests={MOCK_REQUESTS.filter(r => ['qa_approved','final_approved'].includes(r.status))}
+              onAction={id => handleNavigate('view', id)}
+              emptyMsg="No approved MRFs yet."
             />
           ) : activeNav === 'denied_requests' ? (
-            <DeniedInbox
+            <InboxTable
+              title="Denied Request"
+              subtitle="MRFs returned by QA"
+              accentColor="#EF4444"
+              actionLabel="↩ Return"
               requests={MOCK_REQUESTS.filter(r => r.status === 'qa_denied')}
-              onReturn={id => {
-                toast.success('MRF returned to preparer', { description: `Request ${id} has been returned.` })
-              }}
+              onAction={id => toast.success('MRF returned to requester', { description: `Request ${id} has been returned.` })}
+              emptyMsg="No denied MRFs at this time."
             />
           ) : activeNav === 'final_approved' ? (
-            <FinalApprovedInbox
+            <InboxTable
+              title="Final Approved"
+              subtitle="MRFs signed by President — ready for issuance"
+              accentColor="#085041"
+              actionLabel="View →"
               requests={MOCK_REQUESTS.filter(r => r.status === 'final_approved')}
-              onView={id => handleNavigate('final_approved_view', id)}
+              onAction={id => handleNavigate('final_approved_view', id)}
+              emptyMsg="No final approved MRFs yet."
             />
           ) : activeNav === 'summary' ? (
             <SummaryPage user={user} onBack={() => setActiveNav('dashboard')} />
-          ) : activeNav === 'final_approved_view' ? (
-            <FinalApproved user={user} onNavigate={handleNavigate} onBack={() => setActiveNav('final_approved')} />
           ) : (
+
+          /* ── DASHBOARD ──────────────────────────────────────── */
           <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px', marginBottom: '24px' }}>
-            {[
-              { label: 'Total',       value: total,    accent: '#111',    textColor: '#111'    },
-              { label: 'Pending',     value: pending,  accent: '#F59E0B', textColor: '#92400E' },
-              { label: 'QA Review',   value: qaQueue,  accent: '#A855F7', textColor: '#6B21A8' },
-              { label: 'Approved',    value: approved, accent: '#22C55E', textColor: '#166534' },
-              { label: 'Denied',      value: denied,   accent: '#EF4444', textColor: '#991B1B' },
-              { label: 'Returned',    value: returned, accent: '#F97316', textColor: '#9A3412' },
-            ].map(({ label, value, accent, textColor }) => (
-              <div key={label} style={{
-                background: '#fff', border: '0.5px solid #E5E5E5',
-                borderTop: `3px solid ${accent}`, borderRadius: '10px', padding: '16px 18px',
-              }}>
-                <p style={{ margin: '0 0 6px', fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase' }}>{label}</p>
-                <p style={{ margin: 0, fontSize: '26px', fontWeight: '700', color: textColor, fontFamily: 'Georgia, serif' }}>{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* ── QA Review Queue ──────────────────────────────────── */}
-          {toEvaluate.length > 0 && (
-            <div style={{
-              background: '#fff', border: '1px solid #E9D5FF',
-              borderLeft: '4px solid #A855F7', borderRadius: '10px',
-              padding: '16px 20px', marginBottom: '24px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#A855F7', display: 'inline-block' }} />
-                <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '700', color: '#6B21A8' }}>
-                  QA Review Queue — {toEvaluate.length} request{toEvaluate.length > 1 ? 's' : ''} pending evaluation
-                </h3>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {toEvaluate.map(req => (
-                  <div key={req.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 14px', background: '#FAFAFA',
-                    border: '0.5px solid #E5E5E5', borderRadius: '8px',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: '700', color: '#111' }}>{req.id}</span>
-                      <div>
-                        <p style={{ margin: '0 0 1px', fontSize: '13px', fontWeight: '600', color: '#111' }}>{req.partName}</p>
-                        <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>{req.department} · {req.date}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleNavigate('evaluate', req.id)}
-                      style={{
-                        padding: '7px 16px', background: '#6B21A8',
-                        color: '#fff', border: 'none', borderRadius: '6px',
-                        fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-                        fontFamily: 'Arial, Helvetica, sans-serif', letterSpacing: '0.5px',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#7C3AAD'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#6B21A8'}
-                    >
-                      Evaluate →
-                    </button>
-                  </div>
-                ))}
-              </div>
+            {/* Stats row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
+              {[
+                { label: 'Total',        value: total,        accent: '#111',    textColor: '#111'    },
+                { label: 'QA Queue',     value: qaStaffQueue, accent: '#A855F7', textColor: '#6B21A8' },
+                { label: 'Awaiting Mgr', value: managerQueue, accent: '#6366F1', textColor: '#3730A3' },
+                { label: 'Approved',     value: approved,     accent: '#1D9E75', textColor: '#085041' },
+                { label: 'Denied',       value: denied,       accent: '#EF4444', textColor: '#991B1B' },
+              ].map(({ label, value, accent, textColor }) => (
+                <div key={label} style={{ background: '#fff', border: '0.5px solid #E5E5E5', borderTop: `3px solid ${accent}`, borderRadius: '10px', padding: '16px 18px' }}>
+                  <p style={{ margin: '0 0 6px', fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase' }}>{label}</p>
+                  <p style={{ margin: 0, fontSize: '26px', fontWeight: '700', color: textColor, fontFamily: 'Georgia, serif' }}>{value}</p>
+                </div>
+              ))}
             </div>
-          )}
 
-          {/* ── All Requests Table ───────────────────────────────── */}
-          <div style={{ background: '#fff', border: '0.5px solid #E5E5E5', borderRadius: '10px', overflow: 'hidden' }}>
+            {/* ── QA Review Queue — 2-card summary widget ───────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '22px' }}>
 
-            {/* Table toolbar */}
-            <div style={{
-              padding: '16px 20px', borderBottom: '0.5px solid #E5E5E5',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-            }}>
-              <h2 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#111' }}>All MRF Requests</h2>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <input
-                  type="text"
-                  placeholder="Search ID, part, department..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  style={{
-                    padding: '8px 14px', fontSize: '12px', border: '1px solid #E5E5E5',
-                    borderRadius: '6px', outline: 'none', width: '240px',
-                    fontFamily: 'Arial, Helvetica, sans-serif', color: '#111', background: '#FAFAFA',
-                  }}
-                />
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  style={{
-                    padding: '8px 12px', fontSize: '12px', border: '1px solid #E5E5E5',
-                    borderRadius: '6px', outline: 'none', background: '#FAFAFA',
-                    fontFamily: 'Arial, Helvetica, sans-serif', color: '#111', cursor: 'pointer',
-                  }}
-                >
-                  <option value="all">All Status</option>
-                  {Object.entries(STATUS).map(([key, cfg]) => (
-                    <option key={key} value={key}>{cfg.label}</option>
-                  ))}
-                </select>
+              {/* Left card — QA Staff queue (purple) */}
+              <div style={{ background: '#fff', border: '0.5px solid #E9D5FF', borderTop: '3px solid #A855F7', borderRadius: '10px', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase' }}>Awaiting QA Staff Evaluation</p>
+                  <p style={{ margin: '0 0 12px', fontSize: '28px', fontWeight: '700', color: '#6B21A8', fontFamily: 'Georgia, serif' }}>{qaStaffQueue}</p>
+                  <button
+                    onClick={() => handleNavClick('inbox')}
+                    style={{ padding: '7px 16px', background: '#6B21A8', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#7C3AAD'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#6B21A8'}>
+                    Go to Inbox →
+                  </button>
+                </div>
+                <div style={{ width: '48px', height: '48px', background: '#F5F3FF', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="3" width="20" height="16" rx="2" stroke="#A855F7" strokeWidth="1.5"/><path d="M1 9h5l2 3h6l2-3h5" stroke="#A855F7" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>
+              </div>
+
+              {/* Right card — Manager queue (yellow) */}
+              <div style={{ background: '#fff', border: '0.5px solid #FDE68A', borderTop: '3px solid #F5C200', borderRadius: '10px', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase' }}>Awaiting Manager's Approval</p>
+                  <p style={{ margin: '0 0 12px', fontSize: '28px', fontWeight: '700', color: '#92400E', fontFamily: 'Georgia, serif' }}>{managerQueue}</p>
+                  <button
+                    onClick={() => handleNavClick('pending_requests')}
+                    style={{ padding: '7px 16px', background: '#111', color: '#F5C200', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#222'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#111'}>
+                    Go to Pending →
+                  </button>
+                </div>
+                <div style={{ width: '48px', height: '48px', background: '#FFFBEB', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="1" width="18" height="20" rx="2" stroke="#F5C200" strokeWidth="1.5"/><path d="M7 11l3 3 5-6" stroke="#F5C200" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><line x1="7" y1="7" x2="15" y2="7" stroke="#F5C200" strokeWidth="1.2"/></svg>
+                </div>
               </div>
             </div>
 
-            {/* Table */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: '#FAFAFA', borderBottom: '0.5px solid #E5E5E5' }}>
-                    {['Control No.', 'Part Details', 'Customer/Supplier', 'Department', 'App. Date', 'Status', 'Action'].map(col => (
-                      <th key={col} style={{
-                        padding: '11px 18px', textAlign: 'left', fontSize: '10px',
-                        fontWeight: '700', color: '#888', letterSpacing: '1px',
-                        textTransform: 'uppercase', whiteSpace: 'nowrap',
-                      }}>{col}</th>
+            {/* ── All MRF Requests Table ───────────────────────── */}
+            <div style={{ background: '#fff', border: '0.5px solid #E5E5E5', borderRadius: '10px', overflow: 'hidden' }}>
+
+              {/* Toolbar */}
+              <div style={{ padding: '16px 20px', borderBottom: '0.5px solid #E5E5E5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <h2 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#111' }}>All MRF Requests</h2>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input type="text" placeholder="Search ID, part, requester..."
+                    value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                    style={{ padding: '8px 14px', fontSize: '12px', border: '1px solid #E5E5E5', borderRadius: '6px', outline: 'none', width: '240px', fontFamily: 'Arial', color: '#111', background: '#FAFAFA' }} />
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+                    style={{ padding: '8px 12px', fontSize: '12px', border: '1px solid #E5E5E5', borderRadius: '6px', outline: 'none', background: '#FAFAFA', fontFamily: 'Arial', color: '#111', cursor: 'pointer' }}>
+                    <option value="all">All Status</option>
+                    {Object.entries(STATUS_FILTER_OPTIONS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#aaa', fontSize: '13px' }}>
-                        No requests found.
-                      </td>
-                    </tr>
-                  ) : filtered.map((req, i) => {
-                    const needsEval = req.status === 'qa_review'
-                    return (
-                      <tr
-                        key={req.id}
-                        style={{
-                          borderBottom: i < filtered.length - 1 ? '0.5px solid #F0F0F0' : 'none',
-                          background: needsEval ? '#FAF5FF' : 'transparent',
-                          transition: 'background 0.1s',
-                        }}
-                        onMouseEnter={e => { if (!needsEval) e.currentTarget.style.background = '#FAFAFA' }}
-                        onMouseLeave={e => { if (!needsEval) e.currentTarget.style.background = 'transparent' }}
-                      >
-                        <td style={{ padding: '13px 18px', fontFamily: 'monospace', fontSize: '12px', color: '#111', fontWeight: '700' }}>
-                          {req.id}
-                        </td>
-                        <td style={{ padding: '13px 18px' }}>
-                          <p style={{ margin: '0 0 2px', fontWeight: '600', color: '#111', fontSize: '13px' }}>{req.partName}</p>
-                          <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>{req.partNumber}</p>
-                        </td>
-                        <td style={{ padding: '13px 18px', fontSize: '12px' }}>
-                          <span style={{ padding: '2px 8px', background: '#F5F5F5', borderRadius: '4px', fontWeight: '600', color: '#555', fontSize: '11px', fontFamily: 'monospace' }}>
-                            {req.customer || '—'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '13px 18px', color: '#555', fontSize: '12px' }}>{req.department}</td>
-                        <td style={{ padding: '13px 18px', color: '#555', fontSize: '12px', whiteSpace: 'nowrap' }}>{req.date}</td>
-                        <td style={{ padding: '13px 18px' }}><StatusBadge status={req.status} /></td>
-                        <td style={{ padding: '13px 18px' }}>
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                            {/* View button — always shown */}
-                            <button
-                              onClick={() => handleNavigate('view', req.id)}
-                              style={{
-                                padding: '5px 12px', background: 'transparent',
-                                border: '1px solid #E5E5E5', borderRadius: '5px',
-                                fontSize: '12px', color: '#555', cursor: 'pointer',
-                                fontFamily: 'Arial, Helvetica, sans-serif', transition: 'all 0.15s',
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.background = '#111'; e.currentTarget.style.color = '#F5C200'; e.currentTarget.style.borderColor = '#111' }}
-                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555'; e.currentTarget.style.borderColor = '#E5E5E5' }}
-                            >
-                              View
-                            </button>
-                            {/* Evaluate button — only for qa_review */}
-                            {needsEval && (
-                              <button
-                                onClick={() => handleNavigate('evaluate', req.id)}
-                                style={{
-                                  padding: '5px 12px', background: '#6B21A8',
-                                  border: '1px solid #6B21A8', borderRadius: '5px',
-                                  fontSize: '12px', color: '#fff', cursor: 'pointer',
-                                  fontFamily: 'Arial, Helvetica, sans-serif',
-                                  fontWeight: '700', transition: 'all 0.15s',
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = '#7C3AAD'}
-                                onMouseLeave={e => e.currentTarget.style.background = '#6B21A8'}
-                              >
-                                Evaluate →
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  </select>
+                </div>
+              </div>
 
-            {/* Table footer */}
-            <div style={{ padding: '12px 18px', borderTop: '0.5px solid #F0F0F0', background: '#FAFAFA' }}>
-              <p style={{ margin: 0, fontSize: '11px', color: '#aaa' }}>
-                Showing {filtered.length} of {total} requests
-              </p>
+              {/* Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#FAFAFA', borderBottom: '0.5px solid #E5E5E5' }}>
+                      {['Control No.', 'Part Details', 'Customer', 'Requester', 'Noter', 'Conformer', 'App. Date', 'Status', 'Action'].map(col => (
+                        <th key={col} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#aaa', fontSize: '13px' }}>No requests found.</td></tr>
+                    ) : filtered.map((req, i) => {
+                      const needsEval = ['qa_review','conformed_approved'].includes(req.status)
+                      return (
+                        <tr key={req.id}
+                          style={{ borderBottom: i < filtered.length - 1 ? '0.5px solid #F0F0F0' : 'none', background: needsEval ? '#FAF5FF' : 'transparent', transition: 'background 0.1s' }}
+                          onMouseEnter={e => { if (!needsEval) e.currentTarget.style.background = '#FAFAFA' }}
+                          onMouseLeave={e => { if (!needsEval) e.currentTarget.style.background = 'transparent' }}>
+
+                          <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontSize: '12px', color: '#111', fontWeight: '700' }}>{req.id}</td>
+
+                          <td style={{ padding: '12px 14px' }}>
+                            <p style={{ margin: '0 0 2px', fontWeight: '600', color: '#111', fontSize: '13px' }}>{req.partName}</p>
+                            <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>{req.partNumber}</p>
+                          </td>
+
+                          <td style={{ padding: '12px 14px' }}>
+                            <span style={{ padding: '2px 8px', background: '#F5F5F5', borderRadius: '4px', fontWeight: '600', color: '#555', fontSize: '11px', fontFamily: 'monospace' }}>
+                              {req.customer || '—'}
+                            </span>
+                          </td>
+
+                          {/* Requester */}
+                          <td style={{ padding: '12px 14px' }}>
+                            {req.requester ? (
+                              <div>
+                                <div style={{ fontSize: '12px', color: '#111', fontWeight: '500' }}>{req.requester.name}</div>
+                                <div style={{ fontSize: '11px', color: '#888' }}>{req.requester.dept}</div>
+                              </div>
+                            ) : <span style={{ color: '#bbb' }}>—</span>}
+                          </td>
+
+                          {/* Noted By */}
+                          <td style={{ padding: '12px 14px' }}>
+                            <SignatoryDisplay signatories={req.notedBy} />
+                          </td>
+
+                          {/* Conformed By */}
+                          <td style={{ padding: '12px 14px' }}>
+                            <SignatoryDisplay signatories={req.conformedBy} />
+                          </td>
+
+                          <td style={{ padding: '12px 14px', color: '#555', fontSize: '12px', whiteSpace: 'nowrap' }}>{req.date}</td>
+
+                          <td style={{ padding: '12px 14px' }}><StatusBadge status={req.status} /></td>
+
+                          <td style={{ padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <button onClick={() => handleNavigate('view', req.id)}
+                                style={{ padding: '5px 12px', background: 'transparent', border: '1px solid #E5E5E5', borderRadius: '5px', fontSize: '12px', color: '#555', cursor: 'pointer', fontFamily: 'Arial', transition: 'all 0.15s' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#111'; e.currentTarget.style.color = '#F5C200'; e.currentTarget.style.borderColor = '#111' }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555'; e.currentTarget.style.borderColor = '#E5E5E5' }}>
+                                View
+                              </button>
+                              {needsEval && (
+                                <button onClick={() => handleNavigate('evaluate', req.id)}
+                                  style={{ padding: '5px 12px', background: '#6B21A8', border: '1px solid #6B21A8', borderRadius: '5px', fontSize: '12px', color: '#fff', cursor: 'pointer', fontFamily: 'Arial', fontWeight: '700', transition: 'all 0.15s' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#7C3AAD'}
+                                  onMouseLeave={e => e.currentTarget.style.background = '#6B21A8'}>
+                                  Evaluate →
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: '12px 18px', borderTop: '0.5px solid #F0F0F0', background: '#FAFAFA' }}>
+                <p style={{ margin: 0, fontSize: '11px', color: '#aaa' }}>Showing {filtered.length} of {total} requests</p>
+              </div>
             </div>
-          </div>
-          </> )} {/* end dashboard/evaluation toggle */}
+          </>
+          )}
         </div>
       </div>
     </div>

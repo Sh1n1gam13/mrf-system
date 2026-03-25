@@ -1,24 +1,26 @@
 // ─────────────────────────────────────────────────────────────────
 // MRFDetail.jsx
 // Status-driven MRF view/action page
-// Handles all flows: Noted By, Conformed By, Preparer actions, QA
 //
-// STATUS FLOW:
-// draft → pending_noted → pending_forward → pending_conformed
-//   → pending_approval → qa_review → approved → encoding → issuance
-//   [conformed denies] → conformed_denied → pending_conformed (loop)
-//   [QA denies]        → qa_denied → draft (preparer edits & resubmits)
+// STATUS FLOW (updated):
+// draft → pending_noted → noted_signed → pending_conformed
+//   → pending_approval (Requester reviews) → conformed_approved
+//   → qa_review → qa_approved → final_approved → issuance
+//   [Requester denies] → returned_by_requester → pending_conformed (loop)
+//   [QA denies]        → qa_denied → Requester edits → qa_review
 //
+// Task 8: AnnotationOverlay wired to Deny button on pending_approval panel
 // TODO: Replace MOCK_MRF with Firestore fetch by mrfId
 // ─────────────────────────────────────────────────────────────────
 
 import { useState, useRef } from 'react'
-import { toast } from 'sonner'
-import MRFDocument from './MRFDocument'
-import MRFForm     from './MRFForm'
+import { toast }             from 'sonner'
+import MRFDocument           from './MRFDocument'
+import MRFForm               from './MRFForm'
+import MRFProgress           from './MRFProgress'
+import AnnotationOverlay     from './AnnotationOverlay'
 
-// ── Mock MRF data map — keyed by ID to match dashboard rows ──────
-// TODO: Replace with Firestore fetch by mrfId once Firebase connected
+// ── Mock MRF data ─────────────────────────────────────────────────
 const BASE_MRF = {
   department:      'Engineering',
   preparedBy:      'Juan Dela Cruz',
@@ -61,7 +63,9 @@ const MOCK_MRF_MAP = {
   '4M-M-7904': { ...BASE_MRF, id: '4M-M-7904', partName: 'Coolant Pump Cover',    partNumber: 'CP-5505', status: 'pending_approval',
     assignedNoters:    [{ name: 'J. Santos', dept: 'Engineering', sig: null }],
     assignedConformers:[{ name: 'M. Cruz', dept: 'Production', sig: null }],
-    notedBy1Name: 'J. Santos', conformedByName: 'M. Cruz', conformedDecision: 'approved' },
+    notedBy1Name: 'J. Santos', conformedByName: 'M. Cruz', conformedDecision: 'approved',
+    // Mock attachment for annotation testing — replace with Firebase Storage URL
+    conformerAttachments: [{ name: 'Inspection_Report_CP5505.pdf', size: 248000 }] },
   '4M-M-7905': { ...BASE_MRF, id: '4M-M-7905', partName: 'Valve Spring Retainer', partNumber: 'VS-6606', status: 'qa_denied',
     assignedNoters:    [{ name: 'J. Santos', dept: 'Engineering', sig: null }],
     assignedConformers:[{ name: 'M. Cruz', dept: 'Production', sig: null }],
@@ -76,17 +80,24 @@ const FALLBACK_MRF = { ...BASE_MRF, id: 'UNKNOWN', partName: 'Unknown', partNumb
 
 // ── Status config ─────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  draft:             { label: 'Draft',              bg: '#F3F4F6', color: '#374151', dot: '#9CA3AF' },
-  pending_noted:     { label: 'For Noting',         bg: '#FEF3C7', color: '#92400E', dot: '#F59E0B' },
-  noted_signed:    { label: 'Noted & Signed',     bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
-  pending_conformed: { label: 'For Confirmation',   bg: '#FED7AA', color: '#9A3412', dot: '#F97316' },
-  conformed_denied:  { label: 'Returned by Conformer', bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
-  pending_approval:  { label: 'For Your Approval',  bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
-  qa_review:         { label: 'QA Review',          bg: '#F3E8FF', color: '#6B21A8', dot: '#A855F7' },
-  qa_denied:         { label: 'Returned by QA',     bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
-  approved:          { label: 'Approved',            bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
-  encoding:          { label: 'Encoding',            bg: '#E0E7FF', color: '#3730A3', dot: '#6366F1' },
-  issuance:          { label: 'Issued',              bg: '#DCFCE7', color: '#14532D', dot: '#16A34A' },
+  draft:                      { label: 'Draft',                        bg: '#F3F4F6', color: '#374151', dot: '#9CA3AF' },
+  pending_noted:              { label: 'For Noting',                   bg: '#FEF3C7', color: '#92400E', dot: '#F59E0B' },
+  noted_signed:               { label: 'Noted & Signed',               bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
+  pending_conformed:          { label: 'For Confirmation',             bg: '#FED7AA', color: '#9A3412', dot: '#F97316' },
+  conformed_denied:           { label: 'Returned by Conformer',        bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
+  pending_approval:           { label: 'Pending Requester Review',     bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
+  pending_requester_review:   { label: 'Pending Requester Review',     bg: '#DBEAFE', color: '#1E40AF', dot: '#3B82F6' },
+  returned_by_requester:      { label: 'Returned by Requester',        bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
+  conformed_approved:         { label: 'Conformed & Approved',         bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
+  qa_review:                  { label: 'QA Review',                    bg: '#F3E8FF', color: '#6B21A8', dot: '#A855F7' },
+  qa_draft:                   { label: 'QA Draft',                     bg: '#F3E8FF', color: '#6B21A8', dot: '#A855F7' },
+  awaiting_managers_approval: { label: "Awaiting Manager's Approval",  bg: '#E0E7FF', color: '#3730A3', dot: '#6366F1' },
+  qa_denied:                  { label: 'Returned by QA',               bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
+  qa_approved:                { label: 'QA Approved',                  bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
+  final_approved:             { label: 'Final Approved',               bg: '#DCFCE7', color: '#14532D', dot: '#16A34A' },
+  approved:                   { label: 'Approved',                     bg: '#DCFCE7', color: '#166534', dot: '#22C55E' },
+  encoding:                   { label: 'Encoding',                     bg: '#E0E7FF', color: '#3730A3', dot: '#6366F1' },
+  issuance:                   { label: 'Issued',                       bg: '#DCFCE7', color: '#14532D', dot: '#16A34A' },
 }
 
 // ── E-signature upload ────────────────────────────────────────────
@@ -98,7 +109,6 @@ function SigUpload({ value, onChange }) {
     reader.onload = e => onChange(e.target.result)
     reader.readAsDataURL(file)
   }
-  const inputStyle = { width: '100%', padding: '9px 12px', fontSize: '12px', border: '1px solid #E5E5E5', borderRadius: '6px', fontFamily: 'Arial', color: '#111', boxSizing: 'border-box', outline: 'none', background: '#fff' }
 
   return value ? (
     <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -111,8 +121,7 @@ function SigUpload({ value, onChange }) {
       <div onClick={() => ref.current?.click()} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
         style={{ border: '1.5px dashed #D1D5DB', borderRadius: '6px', padding: '14px', cursor: 'pointer', background: '#FAFAFA', textAlign: 'center', transition: 'all 0.15s' }}
         onMouseEnter={e => { e.currentTarget.style.borderColor = '#F5C200'; e.currentTarget.style.background = '#FFFBEB' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.background = '#FAFAFA' }}
-      >
+        onMouseLeave={e => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.background = '#FAFAFA' }}>
         <p style={{ margin: 0, fontSize: '18px' }}>✍</p>
         <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#888' }}>Upload e-signature (PNG/JPG)</p>
       </div>
@@ -139,29 +148,25 @@ function FieldLabel({ children }) {
 
 // ── Main Component ────────────────────────────────────────────────
 export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
-  const initialMrf   = MOCK_MRF_MAP[mrfId] || FALLBACK_MRF
+  const initialMrf = MOCK_MRF_MAP[mrfId] || FALLBACK_MRF
   const [mrf,        setMrf]        = useState(initialMrf)
   const [editing,    setEditing]    = useState(false)
   const [saving,     setSaving]     = useState(false)
   const [saved,      setSaved]      = useState(false)
-  const [denied,     setDenied]     = useState(false)
-  const [deniedText, setDeniedText] = useState('')
   const printRef = useRef(null)
 
+  // ── Annotation overlay state (Task 8) ─────────────────────────
+  const [showAnnotation,  setShowAnnotation]  = useState(false)
+  const [annotationFile,  setAnnotationFile]  = useState(null)   // File | URL | null
+  const [annotationName,  setAnnotationName]  = useState('')
+  const [annotationFType, setAnnotationFType] = useState('pdf')  // 'pdf'|'image'|'doc'|'xls'
+
   // ── Progressive Noted By signatories ─────────────────────────
-  // Each slot: { name, sig, submitted, dirty }
-  // submitted = has been submitted at least once
-  // dirty = edited after submission (triggers Re-submit)
   const initNoterSlots = () => {
     const assigned = initialMrf.assignedNoters || [{ name: '', dept: '' }]
     return assigned.map((a, i) => ({
-      name: a.name || '',
-      sig:  null,
-      submitted: false,
-      dirty: false,
-      assignedName: a.name || '',
-      dept: a.dept || '',
-      visible: i === 0, // only first slot visible initially
+      name: a.name || '', sig: null, submitted: false, dirty: false,
+      assignedName: a.name || '', dept: a.dept || '', visible: i === 0,
     }))
   }
   const [noterSlots, setNoterSlots] = useState(initNoterSlots)
@@ -171,24 +176,17 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
   const submitNoterSlot = (i) => {
     setNoterSlots(p => {
       const updated = p.map((s, idx) => idx === i ? { ...s, submitted: true, dirty: false } : s)
-      // Reveal next slot if exists
       if (i + 1 < updated.length) updated[i + 1] = { ...updated[i + 1], visible: true }
       return updated
     })
   }
-  const allNotersDone = noterSlots.every(s => s.submitted)
 
   // ── Progressive Conformed By signatories ─────────────────────
   const initConfSlots = () => {
     const assigned = initialMrf.assignedConformers || [{ name: '', dept: '' }]
     return assigned.map((a, i) => ({
-      name: a.name || '',
-      sig:  null,
-      submitted: false,
-      dirty: false,
-      assignedName: a.name || '',
-      dept: a.dept || '',
-      visible: i === 0,
+      name: a.name || '', sig: null, submitted: false, dirty: false,
+      assignedName: a.name || '', dept: a.dept || '', visible: i === 0,
     }))
   }
   const [confSlots, setConfSlots] = useState(initConfSlots)
@@ -202,20 +200,37 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
       return updated
     })
   }
-  const allConfDone = confSlots.every(s => s.submitted)
-  const anyConfDenied = confSlots.some(s => s.submitted && s.decision === 'denied')
-
-  // Legacy aliases for MRFDocument props
-  const confName = confSlots[0]?.name || ''
-  const confSig  = confSlots[0]?.sig  || null
 
   const role   = user?.role || 'engineering'
   const status = mrf.status
   const s      = STATUS_CONFIG[status] || STATUS_CONFIG.draft
 
-  const inputStyle = { width: '100%', padding: '9px 12px', fontSize: '12px', border: '1px solid #E5E5E5', borderRadius: '6px', fontFamily: 'Arial', color: '#111', boxSizing: 'border-box', outline: 'none' }
+  const inputStyle = {
+    width: '100%', padding: '9px 12px', fontSize: '12px', border: '1px solid #E5E5E5',
+    borderRadius: '6px', fontFamily: 'Arial', color: '#111', boxSizing: 'border-box', outline: 'none',
+  }
 
-  // ── Simulate status update (replace with Firestore write) ────
+  // ── Open annotation overlay ───────────────────────────────────
+  // Pass the first conformer attachment; fall back to text-only if none
+  const openAnnotation = (attachment) => {
+    if (!attachment) {
+      setAnnotationFile(null)
+      setAnnotationName('No attachment')
+      setAnnotationFType('doc')
+    } else {
+      const ext = (attachment.name || '').split('.').pop().toLowerCase()
+      const ft  = ext === 'pdf' ? 'pdf'
+        : ['jpg','jpeg','png'].includes(ext) ? 'image'
+        : ['doc','docx'].includes(ext) ? 'doc'
+        : 'xls'
+      setAnnotationFile(null)   // TODO: replace null with Firebase Storage URL
+      setAnnotationName(attachment.name)
+      setAnnotationFType(ft)
+    }
+    setShowAnnotation(true)
+  }
+
+  // ── Status update ─────────────────────────────────────────────
   const updateStatus = (newStatus, extraFields = {}, toastMsg = null) => {
     setSaving(true)
     setTimeout(() => {
@@ -227,21 +242,14 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
     }, 800)
   }
 
-  // ── If editing (qa_denied → resubmit), show MRFForm ──────────
+  // ── Editing mode ──────────────────────────────────────────────
   if (editing) {
     return (
       <div style={{ padding: '0 28px', overflowY: 'auto', height: '100vh', background: '#F5F5F5' }}>
-        <MRFForm
-          user={user}
-          initialData={mrf}
-          onNavigate={onNavigate}
+        <MRFForm user={user} initialData={mrf} onNavigate={onNavigate}
           onBack={() => setEditing(false)}
-          onResubmit={(newData) => {
-            updateStatus('pending_noted', newData)
-            setEditing(false)
-          }}
-          isResubmit
-        />
+          onResubmit={(newData) => { updateStatus('qa_review', newData); setEditing(false) }}
+          isResubmit />
       </div>
     )
   }
@@ -263,7 +271,6 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
               &nbsp;·&nbsp; {mrf.partName}
             </p>
           </div>
-          {/* Status badge */}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: s.bg, color: s.color, borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.dot }} />
             {s.label}
@@ -277,6 +284,9 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
           ✓ Action completed successfully. Status updated.
         </div>
       )}
+
+      {/* ── Progress tracker ────────────────────────────────────── */}
+      <MRFProgress status={status} />
 
       {/* ── MRF Document ────────────────────────────────────────── */}
       <div ref={printRef} style={{ background: '#fff', padding: '12px', border: '1px solid #ccc', width: '794px', boxSizing: 'border-box' }}>
@@ -306,11 +316,13 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
             conformedByName: confSlots[0]?.name || mrf.conformedByName,
             conformedBySig:  confSlots[0]?.sig  || mrf.conformedBySig,
             conformedBySignatories: confSlots.filter(s => s.name || s.sig).map(s => ({ name: s.name, sig: s.sig })),
-            conformedDecision: mrf.status === 'conformed_denied' ? 'denied'
-              : ['pending_approval','qa_review','qa_denied','approved','encoding','issuance'].includes(mrf.status) ? 'approved'
+            conformedDecision: ['conformed_denied'].includes(mrf.status) ? 'denied'
+              : ['pending_approval','pending_requester_review','returned_by_requester',
+                 'conformed_approved','qa_review','qa_denied','approved','encoding','issuance',
+                 'qa_approved','final_approved'].includes(mrf.status) ? 'approved'
               : null,
             qaDecision: mrf.status === 'qa_denied' ? 'denied'
-              : ['approved','encoding','issuance'].includes(mrf.status) ? 'approved'
+              : ['approved','encoding','issuance','qa_approved','final_approved'].includes(mrf.status) ? 'approved'
               : null,
           }}
           qa={{
@@ -323,21 +335,20 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
             approvalDecision: mrf.approvalDecision,
             distributionCopy: mrf.distributionCopy,
           }}
-          showQA={['qa_review','qa_denied','approved','encoding','issuance'].includes(status)}
+          showQA={['qa_review','qa_denied','approved','encoding','issuance','qa_approved','final_approved'].includes(status)}
           showDistribution={role !== 'president'}
           user={user}
         />
       </div>
 
       {/* ════════════════════════════════════════════════════════════
-          ACTION PANELS — shown based on role + status
+          ACTION PANELS
       ════════════════════════════════════════════════════════════ */}
 
-      {/* ── [NOTED BY] Sign the MRF ──────────────────────────────
-          Shown when: status = pending_noted, any dept user       */}
-      {/* ── [NOTED BY] Progressive signing panel ──────────────── */}
+      {/* ── [NOTED BY] Progressive signing ─────────────────────── */}
       {status === 'pending_noted' && role !== 'qa' && role !== 'president' && (
-        <ActionPanel title="✍ Noted By — Sign this MRF" subtitle={`${noterSlots.length} signator${noterSlots.length > 1 ? 'ies' : 'y'} assigned. Each signs individually.`}>
+        <ActionPanel title="✍ Noted By — Sign this MRF"
+          subtitle={`${noterSlots.length} signator${noterSlots.length > 1 ? 'ies' : 'y'} assigned. Each signs individually.`}>
           {noterSlots.filter(s => s.visible).map((s, i) => {
             const isGrayed = s.submitted && !s.dirty
             return (
@@ -355,13 +366,11 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
                 </div>
                 <div style={{ marginBottom: '12px' }}>
                   <FieldLabel>Name</FieldLabel>
-                  <input type="text" value={s.name}
-                    onChange={e => updateNoterSlot(i, 'name', e.target.value)}
+                  <input type="text" value={s.name} onChange={e => updateNoterSlot(i, 'name', e.target.value)}
                     style={{ ...inputStyle, background: '#F9FAFB', color: '#555' }} />
                   <p style={{ margin: '3px 0 0', fontSize: '10px', color: '#aaa' }}>Pre-filled by Prepared By. Edit only if incorrect.</p>
                 </div>
-                <button
-                  disabled={!s.sig || saving}
+                <button disabled={!s.sig || saving}
                   onClick={() => {
                     submitNoterSlot(i)
                     const isLast = i === noterSlots.length - 1
@@ -388,16 +397,17 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
         </ActionPanel>
       )}
 
-      {/* ── [PREPARER] Forward to Conformed By ───────────────────── */}
+      {/* ── [REQUESTER] Forward to Conformed By ──────────────────── */}
       {status === 'noted_signed' && role !== 'qa' && role !== 'president' && (
-        <ActionPanel title="📤 Forward to Conformed By" subtitle="Noted By has signed. Click below to forward this MRF to the Conformed By signatory.">
+        <ActionPanel title="📤 Forward to Conformed By"
+          subtitle="Noted By has signed. Forward this MRF to the Conformed By signatory.">
           <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#555' }}>
-            The MRF has been noted. As the preparer, you need to forward it to <strong>Conformed By</strong> for confirmation.
+            The MRF has been noted. As the Requester, forward it to <strong>Conformed By</strong> for confirmation.
           </p>
           <button disabled={saving}
             onClick={() => updateStatus('pending_conformed', {}, () =>
               toast.success('MRF forwarded to Conformed By', {
-                description: `The MRF is now awaiting confirmation from the Conformed By signatory.`,
+                description: 'The MRF is now awaiting confirmation from the Conformed By signatory.',
               })
             )}
             style={{ padding: '10px 24px', background: '#111', color: '#F5C200', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}>
@@ -406,12 +416,14 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
         </ActionPanel>
       )}
 
+      {/* ── [CONFORMED BY] Sign ──────────────────────────────────── */}
       {status === 'pending_conformed' && role !== 'qa' && role !== 'president' && (
-        <ActionPanel title="✍ Conformed By — Confirm this MRF" subtitle={`${confSlots.length} signator${confSlots.length > 1 ? 'ies' : 'y'} assigned. Each signs individually.`}>
+        <ActionPanel title="✍ Conformed By — Confirm this MRF"
+          subtitle={`${confSlots.length} signator${confSlots.length > 1 ? 'ies' : 'y'} assigned. Each signs individually.`}>
           {confSlots.filter(s => s.visible).map((s, i) => {
-            const isGrayed = s.submitted && !s.dirty
-            const denyOpen = s.denyOpen || false
-            const denyText = s.denyText || ''
+            const isGrayed        = s.submitted && !s.dirty
+            const denyOpen        = s.denyOpen || false
+            const denyText        = s.denyText || ''
             const setDenyOpenLocal = (v) => setConfSlots(p => p.map((x, idx) => idx === i ? { ...x, denyOpen: v } : x))
             const setDenyTextLocal = (v) => setConfSlots(p => p.map((x, idx) => idx === i ? { ...x, denyText: v } : x))
             return (
@@ -425,7 +437,6 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
                   </p>
                   <span style={{ fontSize: '11px', color: '#888' }}>{s.dept}</span>
                 </div>
-
                 {!denyOpen && (
                   <>
                     <div style={{ marginBottom: '10px' }}>
@@ -434,14 +445,12 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <FieldLabel>Name</FieldLabel>
-                      <input type="text" value={s.name}
-                        onChange={e => updateConfSlot(i, 'name', e.target.value)}
+                      <input type="text" value={s.name} onChange={e => updateConfSlot(i, 'name', e.target.value)}
                         style={{ ...inputStyle, background: '#F9FAFB', color: '#555' }} />
                       <p style={{ margin: '3px 0 0', fontSize: '10px', color: '#aaa' }}>Pre-filled by Prepared By. Edit only if incorrect.</p>
                     </div>
                   </>
                 )}
-
                 {denyOpen && (
                   <div style={{ marginBottom: '12px' }}>
                     <FieldLabel>Reason for Denial <span style={{ color: '#EF4444' }}>*</span></FieldLabel>
@@ -450,7 +459,6 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
                       style={{ ...inputStyle, resize: 'vertical', minHeight: '80px', lineHeight: '1.5' }} />
                   </div>
                 )}
-
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {!denyOpen ? (
                     <>
@@ -459,15 +467,15 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
                           submitConfSlot(i, 'approved', '')
                           const isLast = i === confSlots.length - 1
                           if (isLast) {
-                            updateStatus('conformed_approved', {
+                            updateStatus('pending_approval', {
                               conformedByName: confSlots[0]?.name,
                               conformedBySig:  confSlots[0]?.sig,
                               conformedBySignatories: confSlots.map(x => ({ name: x.name, sig: x.sig })),
-                            }, () => toast.success('MRF approved by Conformed By', {
-                              description: `All conformers approved. ${mrf.preparedBy} has been notified to send to QA.`,
+                            }, () => toast.success('MRF confirmed — returned to Requester for review', {
+                              description: `${mrf.preparedBy} (Requester) has been notified to review the attached work.`,
                             }))
                           } else {
-                            toast.success(`Signatory ${i + 1} approved`, {
+                            toast.success(`Signatory ${i + 1} submitted`, {
                               description: `Next: ${confSlots[i + 1]?.assignedName || 'Signatory ' + (i + 2)} has been notified.`,
                             })
                           }
@@ -489,7 +497,7 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
                             conformedByName: s.name || s.assignedName,
                             deniedReason: denyText,
                           }, () => toast.error('MRF denied', {
-                            description: `${mrf.preparedBy} has been notified. MRF returned for revision.`,
+                            description: `${mrf.preparedBy} (Requester) has been notified. MRF returned for revision.`,
                           }))
                         }}
                         style={{ padding: '8px 20px', background: !denyText ? '#E5E5E5' : '#EF4444', color: !denyText ? '#aaa' : '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: !denyText ? 'not-allowed' : 'pointer', fontFamily: 'Arial' }}>
@@ -508,11 +516,10 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
         </ActionPanel>
       )}
 
-      {/* ── [PREPARER] Conformed By Denied — Review & Edit ──────────
-          Prepared By sees denial reason + Review & Edit button
-          No re-confirm panel — must edit MRF first then resubmit  */}
+      {/* ── [REQUESTER] Conformed By Denied — Edit & Resubmit ────── */}
       {status === 'conformed_denied' && role !== 'qa' && role !== 'president' && (
-        <ActionPanel title="⚠ MRF Denied by Conformed By" accent="#9A3412" subtitle="The Conformed By signatory has denied this MRF. Review the reason below, edit the MRF, then resubmit.">
+        <ActionPanel title="⚠ MRF Denied by Conformed By" accent="#9A3412"
+          subtitle="The Conformed By signatory has denied this MRF. Review the reason, edit the MRF, then resubmit.">
           {mrf.deniedReason && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '12px 14px', marginBottom: '16px' }}>
               <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: '#991B1B' }}>REASON FOR DENIAL</p>
@@ -523,21 +530,93 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
             Review the denial reason above, make the necessary changes to your MRF, then resubmit to the same Conformed By person/s.
           </p>
           <button disabled={saving}
-            onClick={() => {
-              // TODO: Navigate to MRFForm edit mode with current MRF data pre-filled
-              toast('Redirecting to edit form...', { description: 'Your MRF data will be pre-filled for editing.' })
-            }}
+            onClick={() => toast('Redirecting to edit form...', { description: 'Your MRF data will be pre-filled for editing.' })}
             style={{ padding: '10px 24px', background: '#111', color: '#F5C200', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}>
             ✏ Review & Edit MRF
           </button>
         </ActionPanel>
       )}
 
-      {/* ── [PREPARER] Conformed By Approved — Send to QA ───────── */}
-      {status === 'pending_approval' && role !== 'qa' && role !== 'president' && (
-        <ActionPanel title="✅ Conformed By Approved — Send to QA" subtitle="Conformed By has confirmed this MRF. Click below to send it to QA for review.">
+      {/* ══════════════════════════════════════════════════════════
+          [REQUESTER] Review Conformers' Attached Work
+          Status: pending_approval (old name) or pending_requester_review (new name)
+          ↓ Deny button opens AnnotationOverlay
+      ══════════════════════════════════════════════════════════ */}
+      {(status === 'pending_approval' || status === 'pending_requester_review') && role !== 'qa' && role !== 'president' && (
+        <ActionPanel title="🔍 Review Conformers' Attached Work"
+          subtitle="Conformers have attached their work. Review the documents, then approve or deny."
+          accent="#1E40AF">
+
+          {/* File list */}
+          {(mrf.conformerAttachments || []).length > 0 ? (
+            <div style={{ marginBottom: '18px' }}>
+              <p style={{ margin: '0 0 10px', fontSize: '12px', fontWeight: '700', color: '#111' }}>
+                Attached by Conformed By ({(mrf.conformerAttachments || []).length} file{(mrf.conformerAttachments || []).length !== 1 ? 's' : ''}):
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {(mrf.conformerAttachments || []).map((item, idx) => {
+                  const ext = (item.name || '').split('.').pop().toLowerCase()
+                  const bg  = ext === 'pdf' ? '#FEE2E2' : ['jpg','jpeg','png'].includes(ext) ? '#F3E8FF' : '#DBEAFE'
+                  const clr = ext === 'pdf' ? '#991B1B' : ['jpg','jpeg','png'].includes(ext) ? '#6B21A8' : '#1E40AF'
+                  return (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#F9FAFB', border: '0.5px solid #E5E5E5', borderRadius: '8px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '8px', fontWeight: '700', color: clr }}>{ext.toUpperCase().slice(0,3)}</span>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: 0, fontSize: '12px', fontWeight: '600', color: '#111' }}>{item.name}</p>
+                        {item.size && <p style={{ margin: 0, fontSize: '10px', color: '#888' }}>{Math.round(item.size / 1024)} KB</p>}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#3B82F6', fontWeight: '600', cursor: 'pointer' }}>View</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '14px', background: '#F9FAFB', borderRadius: '6px', marginBottom: '18px', fontSize: '12px', color: '#888', textAlign: 'center' }}>
+              No files attached yet. (Files will appear here once Firebase is connected.)
+            </div>
+          )}
+
+          <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#555', lineHeight: '1.6' }}>
+            If the work matches your request, approve to forward to QA.
+            If it needs revision, deny — you can annotate the file to highlight exactly what needs correcting.
+          </p>
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Approve */}
+            <button disabled={saving}
+              onClick={() => updateStatus('conformed_approved', {}, () =>
+                toast.success('Work approved — ready to send to QA', {
+                  description: "Conformers' work has been approved. You can now send the MRF to QA."
+                })
+              )}
+              style={{ padding: '10px 24px', background: saving ? '#555' : '#22C55E', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Arial' }}>
+              {saving ? 'Saving...' : '✓ Approve Work'}
+            </button>
+
+            {/* ── Deny → opens AnnotationOverlay ─────────────────── */}
+            <button
+              onClick={() => {
+                const firstFile = (mrf.conformerAttachments || [])[0] || null
+                openAnnotation(firstFile)
+              }}
+              style={{ padding: '10px 24px', background: 'transparent', color: '#EF4444', border: '1px solid #EF4444', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              ✕ Deny — Annotate & Return to Conformers
+            </button>
+          </div>
+        </ActionPanel>
+      )}
+
+      {/* ── [REQUESTER] Work Approved — Send to QA ───────────────── */}
+      {status === 'conformed_approved' && role !== 'qa' && role !== 'president' && (
+        <ActionPanel title="✅ Work Approved — Send to QA"
+          subtitle="You approved the Conformers' work. Send the MRF to QA for review.">
           <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#555' }}>
-            Conformed by: <strong>{mrf.conformedByName}</strong>{mrf.conformedByDate ? ` on ${mrf.conformedByDate}` : ''}
+            Conformed by: <strong>{mrf.conformedByName || confSlots.map(s => s.name).filter(Boolean).join(', ')}</strong>
           </p>
           <button disabled={saving}
             onClick={() => updateStatus('qa_review', {}, () =>
@@ -551,45 +630,96 @@ export default function MRFDetail({ mrfId, user, onNavigate, onBack }) {
         </ActionPanel>
       )}
 
-      {/* ── [PREPARER] QA Denied — Edit and Resubmit ─────────────
-          qa_denied → Preparer edits MRF from scratch             */}
+      {/* ── [CONFORMERS] Work Denied by Requester ────────────────── */}
+      {status === 'returned_by_requester' && role !== 'qa' && role !== 'president' && (
+        <ActionPanel title="⚠ Work Denied by Requester" accent="#9A3412"
+          subtitle="The Requester has reviewed your attached work and returned it for revision.">
+          {mrf.deniedReason && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '12px 14px', marginBottom: '16px' }}>
+              <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: '#991B1B' }}>REASON FOR DENIAL</p>
+              <p style={{ margin: 0, fontSize: '12px', color: '#991B1B', lineHeight: '1.6' }}>{mrf.deniedReason}</p>
+            </div>
+          )}
+          <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#555', lineHeight: '1.6' }}>
+            Review the reason above, revise your work documents, then reattach and resubmit.
+          </p>
+          <button disabled={saving}
+            onClick={() => updateStatus('pending_conformed', { conformerAttachments: [] }, () =>
+              toast('MRF returned for re-confirmation', { description: 'Reattach your revised work and sign again.' })
+            )}
+            style={{ padding: '10px 24px', background: '#111', color: '#F5C200', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}>
+            {saving ? 'Processing...' : '↩ Revise & Reattach'}
+          </button>
+        </ActionPanel>
+      )}
+
+      {/* ── [REQUESTER] Returned by QA ───────────────────────────── */}
       {status === 'qa_denied' && role !== 'qa' && role !== 'president' && (
-        <ActionPanel title="⚠ MRF Returned by QA" accent="#991B1B" subtitle="QA has reviewed and returned this MRF. Please review their remarks and edit the MRF before resubmitting.">
+        <ActionPanel title="⚠ MRF Returned by QA" accent="#991B1B"
+          subtitle="QA has returned this MRF. Review their remarks, then edit and resubmit directly back to QA.">
           {mrf.qaRemarks && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '12px 14px', marginBottom: '16px' }}>
               <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '700', color: '#991B1B' }}>QA REMARKS</p>
               <p style={{ margin: 0, fontSize: '12px', color: '#991B1B' }}>{mrf.qaRemarks}</p>
             </div>
           )}
+          <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#555' }}>
+            After editing, the MRF goes straight back to QA — no need to redo Noted By or Conformed By.
+          </p>
           <button onClick={() => setEditing(true)}
             style={{ padding: '10px 24px', background: '#F5C200', color: '#111', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Arial' }}>
-            ✎ Edit & Resubmit MRF
+            ✎ Edit & Resubmit to QA
           </button>
         </ActionPanel>
       )}
 
-      {/* ── [QA] In Review ────────────────────────────────────────
-          Read-only notice, QA uses Evaluate button from dashboard */}
+      {/* ── [QA] In Review ────────────────────────────────────────── */}
       {status === 'qa_review' && role === 'qa' && (
-        <ActionPanel title="📋 MRF is Under QA Review" subtitle="Use the Evaluate button from the dashboard to fill in the QA evaluation for this MRF.">
+        <ActionPanel title="📋 MRF is Under QA Review"
+          subtitle="Use the Evaluate button from the dashboard to fill in the QA evaluation.">
           <p style={{ margin: 0, fontSize: '12px', color: '#555' }}>
-            This MRF is pending your evaluation. Go back to the dashboard and click <strong>Evaluate →</strong> on this request to fill in QA remarks, process evaluation, and recommendation.
+            This MRF is pending your evaluation. Go back to the dashboard and click <strong>Evaluate →</strong> on this request.
           </p>
         </ActionPanel>
       )}
 
-      {/* ── [ALL] Read-only statuses ──────────────────────────────
-          approved / encoding / issuance — just show the document  */}
-      {['approved', 'encoding', 'issuance'].includes(status) && (
+      {/* ── [ALL] Final read-only statuses ───────────────────────── */}
+      {['approved','encoding','issuance','qa_approved','final_approved'].includes(status) && (
         <div style={{ marginTop: '20px', padding: '14px 18px', background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>✅</span>
           <div>
             <p style={{ margin: '0 0 2px', fontSize: '13px', fontWeight: '700', color: '#166534' }}>
-              {status === 'approved' ? 'This MRF has been approved by QA.' : status === 'encoding' ? 'Being encoded on the summary.' : 'MRF has been issued.'}
+              {status === 'qa_approved'    ? 'QA Approved — Awaiting President signature.'
+               : status === 'final_approved' ? 'Final Approved — Ready for Issuance.'
+               : status === 'approved'       ? 'This MRF has been approved by QA.'
+               : status === 'encoding'       ? 'Being encoded on the summary.'
+               : 'MRF has been issued.'}
             </p>
             <p style={{ margin: 0, fontSize: '11px', color: '#166534' }}>No further action required from you.</p>
           </div>
         </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          Annotation Overlay — Task 8
+          Renders on top of everything when showAnnotation is true
+      ══════════════════════════════════════════════════════════ */}
+      {showAnnotation && (
+        <AnnotationOverlay
+          file={annotationFile}
+          fileName={annotationName}
+          fileType={annotationFType}
+          onConfirm={(annotations, reason) => {
+            setShowAnnotation(false)
+            updateStatus('returned_by_requester', {
+              deniedReason: reason,
+              annotations,   // TODO: store in Firestore — not burned into file
+            }, () => toast.error('Work denied — returned to Conformers', {
+              description: 'Conformers have been notified with your annotations and reason.',
+            }))
+          }}
+          onCancel={() => setShowAnnotation(false)}
+        />
       )}
 
     </div>

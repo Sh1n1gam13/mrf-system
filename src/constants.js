@@ -9,7 +9,7 @@ export const CONTROL_NO_PREFIX = '4M-M-'
 
 // ── Workflow roles (from form: Prepared by / Noted by / Conformed by / QA) ──
 export const ROLES = {
-  preparer:  'preparer',
+  requester: 'Requester',
   noter:     'noter',
   conformer: 'conformer',  // "Conformed by" on the actual form
   qa:        'qa',
